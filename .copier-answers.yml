@@ -1,0 +1,9 @@
+_commit: 082765e
+_src_path: git@github.com:mRokita/copier-python
+author_email: mrokita@mrokita.pl
+author_fullname: "Micha\u0142 Rokita"
+mkdocs_accent: pink
+mkdocs_primary: white
+project_name: pybrook
+python_package_distribution_name: pybrook
+python_package_import_name: pybrook
