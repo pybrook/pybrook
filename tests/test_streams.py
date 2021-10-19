@@ -16,7 +16,7 @@ def test_stream_consumer():
         return {'test_output': message}
 
     def insert():
-        for i in range(1000000):
+        for i in range(500000):
             redis_conn.xadd('test_input', {'a': 1, 'b': 2, '_obj_id': 5})
 
     consumer = StreamConsumer(TEST_REDIS_URI, 'test_1', input_streams=['test_input'])
@@ -29,7 +29,11 @@ def test_stream_consumer():
         policy.set_event_loop(policy.new_event_loop())
         loop = asyncio.get_event_loop()
         consumer.process_message = process_message
-        loop.run_until_complete(consumer.run())
+
+        async def spawn():
+            tasks = [asyncio.create_task(consumer.run()) for _ in range(16)]
+            await asyncio.wait(tasks, loop=policy.get_event_loop())
+        loop.run_until_complete(spawn())
 
     t = time()
     for _ in range(8):
