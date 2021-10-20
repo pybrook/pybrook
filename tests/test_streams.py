@@ -1,42 +1,74 @@
 import asyncio
-import multiprocessing
-from time import time, sleep
+from multiprocessing import Process
+from time import sleep
+
+import aioredis
 import redis
-from pybrook.workers.splitter import StreamConsumer
-from loguru import logger
+import pytest
 
-TEST_REDIS_URI = 'redis://localhost/13'
+from pybrook.config import OBJECT_ID_FIELD
+from pybrook.workers import Splitter
+
+TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
 
 
-def test_stream_consumer():
-    redis_conn = redis.from_url(TEST_REDIS_URI)
-    redis_conn.flushdb()
+@pytest.fixture
+@pytest.mark.asyncio
+async def redis_async():
+    redis_async: aioredis.Redis = await aioredis.from_url(TEST_REDIS_URI, decode_responses=True)
+    yield redis_async
+    await redis_async.flushdb()
+    await redis_async.close()
+    await redis_async.connection_pool.disconnect()
 
-    async def process_message(stream, message):
-        return {'test_output': message}
 
-    def insert():
-        for i in range(500000):
-            redis_conn.xadd('test_input', {'a': 1, 'b': 2, '_obj_id': 5})
+@pytest.fixture
+def redis_sync():
+    redis_sync: redis.Redis = redis.from_url(TEST_REDIS_URI, decode_responses=True)
+    yield redis_sync
+    redis_sync.flushdb()
+    redis_sync.close()
+    redis_sync.connection_pool.disconnect()
 
-    consumer = StreamConsumer(TEST_REDIS_URI, 'test_1', input_streams=['test_input'])
 
-    asyncio.run(consumer.create_groups())
-    insert()
+@pytest.mark.asyncio
+async def test_splitter(redis_async: aioredis.Redis):
+    splitter = Splitter(group_name='splitter', redis_url=TEST_REDIS_URI, input_streams=['test_input'])
+    await splitter.create_groups_async()
+    async with redis_async.pipeline() as p:
+        for i in range(10):
+            await p.xadd('test_input', {OBJECT_ID_FIELD: 'Vehicle 1', 'a': f'{i}', 'b': f'{i + 1}'})
+        await p.execute()
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(splitter.run_async(), timeout=1)
+    message = (await redis_async.xread(streams={'@a': '0-0'}, count=1))[0]
+    assert message[0] == '@a'
+    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
 
-    def run_consumer():
-        policy = asyncio.get_event_loop_policy()
-        policy.set_event_loop(policy.new_event_loop())
-        loop = asyncio.get_event_loop()
-        consumer.process_message = process_message
+    message = (await redis_async.xread(streams={'@b': '0-0'}, count=1))[0]
+    assert message[0] == '@b'
+    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
 
-        async def spawn():
-            tasks = [asyncio.create_task(consumer.run()) for _ in range(16)]
-            await asyncio.wait(tasks, loop=policy.get_event_loop())
-        loop.run_until_complete(spawn())
 
-    t = time()
-    for _ in range(8):
-        multiprocessing.Process(target=run_consumer).start()
-    sleep(10)
-    assert time() - t == 0, redis_conn.xlen('test_output')
+def test_splitter_sync(redis_sync: redis.Redis):
+    splitter = Splitter(group_name='splitter', redis_url=TEST_REDIS_URI, input_streams=['test_input'])
+    splitter.create_groups_sync()
+    with redis_sync.pipeline() as p:
+        for i in range(10):
+            p.xadd('test_input', {OBJECT_ID_FIELD: 'Vehicle 1', 'a': f'{i}', 'b': f'{i + 1}'})
+        p.execute()
+
+    proc = Process(target=splitter.run_sync)
+    proc.start()
+    sleep(1)
+    proc.terminate()
+    proc.kill()
+    message = redis_sync.xread(streams={'@a': '0-0'}, count=1)[0]
+    assert message[0] == '@a'
+    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
+
+    message = redis_sync.xread(streams={'@b': '0-0'}, count=1)[0]
+    assert message[0] == '@b'
+    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
+
+
