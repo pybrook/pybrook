@@ -105,6 +105,8 @@ ignore =
     WPS402
     # __init__ modules with logic
     WPS412
+    # too short name
+    WPS111
     # print statements
     WPS421
     # statement with no effect (not compatible with attribute docstrings)
