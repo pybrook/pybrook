@@ -4,7 +4,7 @@ import random
 import signal
 import threading
 from multiprocessing import Process
-from time import sleep
+from time import sleep, time
 from typing import Dict, List
 
 import aioredis
@@ -25,7 +25,7 @@ def replace_process_with_thread(monkeypatch):
     t = time()
     monkeypatch.setattr(
         StreamConsumer, 'active',
-        property(fget=lambda s: time() < t + 3, fset=lambda s, v: None))
+        property(fget=lambda s: time() < t + 1, fset=lambda s, v: None))
     monkeypatch.setattr(signal, 'signal', lambda *args: None)
 
 
@@ -47,6 +47,18 @@ def redis_sync():
     yield redis_sync
     redis_sync.flushdb()
     redis_sync.close()
+
+
+@pytest.fixture()
+def test_input_perf(redis_sync) -> List[Dict[str, str]]:
+    data = []
+    with redis_sync.pipeline() as p:
+        for i in range(3000):
+            item = {OBJECT_ID_FIELD: 'Vehicle 1', 'a': f'{i}', 'b': f'{i + 1}'}
+            p.xadd('test_input', item)
+            data.append(item)
+        p.execute()
+    return data
 
 
 @pytest.fixture()
@@ -176,3 +188,24 @@ def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency):
     out_data = redis_sync.xread({resolver.output_stream_key: '0'})[0][1]
     for _, message in out_data:
         assert message[MSG_ID_FIELD][-1] == message['a'] == message['b']
+
+
+def test_perf(test_input_perf, redis_sync):
+    splitter = Splitter(consumer_group_name='splitter',
+                        redis_url=TEST_REDIS_URI,
+                        read_chunk_length=100,
+                        input_streams=['test_input'])
+    resolver = DependencyResolver(resolver_name='ab_resolver',
+                                  dependency_names=['a', 'b'],
+                                  read_chunk_length=100,
+                                  redis_url=TEST_REDIS_URI)
+
+    t = time()
+    splitter_procs = Worker(splitter).run_sync(processes_num=4)
+    resolver_procs = Worker(resolver).run_sync(processes_num=4)
+    for p in splitter_procs + resolver_procs:
+        p.join()
+    print(time() - t)
+    assert [redis_sync.xlen('@a'),
+            redis_sync.xlen('@b'),
+            redis_sync.xlen(resolver.output_stream_key)] == [3000] * 3
