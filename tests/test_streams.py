@@ -11,9 +11,9 @@ import aioredis
 import pytest
 import redis
 
-from pybrook.config import OBJECT_ID_FIELD
+from pybrook.config import OBJECT_ID_FIELD, MSG_ID_FIELD
 from pybrook.workers import Splitter
-from pybrook.workers.splitter import StreamConsumer, Worker, DependencyResolver
+from pybrook.workers.splitter import DependencyResolver, StreamConsumer, Worker
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
 
@@ -77,7 +77,7 @@ def test_worker(test_input, redis_sync, mode):
 
     class TestConsumer(StreamConsumer):
         def process_message_sync(
-                self, stream: bytes, message: Dict[str, str], *,
+                self, stream_name: bytes, message: Dict[str, str], *,
                 redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:
             # simulate out of order execution
             sleep(random.choice([0, 0.5]))
@@ -85,7 +85,7 @@ def test_worker(test_input, redis_sync, mode):
             return {}
 
         async def process_message_async(
-                self, stream: bytes, message: Dict[str, str], *,
+                self, stream_name: bytes, message: Dict[str, str], *,
                 redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:
             # simulate out of order execution
             await asyncio.sleep(random.choice([0, 0.5]))
@@ -159,7 +159,9 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input):
 
 
 def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency):
-    resolver = DependencyResolver(resolver_name='ab_resolver', dependency_names=['a', 'b'], redis_url=TEST_REDIS_URI)
+    resolver = DependencyResolver(resolver_name='ab_resolver',
+                                  dependency_names=['a', 'b'],
+                                  redis_url=TEST_REDIS_URI)
     resolver.create_groups_sync()
     ps = []
     for i in range(16):
@@ -170,4 +172,7 @@ def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency):
     for p in ps:
         p.join()
 
-    assert redis_sync.xlen(resolver.output_stream) == 10
+    assert redis_sync.xlen(resolver.output_stream_key) == 10
+    out_data = redis_sync.xread({resolver.output_stream_key: '0'})[0][1]
+    for _, message in out_data:
+        assert message[MSG_ID_FIELD][-1] == message['a'] == message['b']
