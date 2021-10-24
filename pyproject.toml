@@ -50,6 +50,7 @@ pytest-sugar = "^0.9.4"
 # misc
 ptpython = "^3.0.7"
 pytest-asyncio = "^0.15.1"
+types-redis = "^3.5.15"
 
 [tool.isort]
 line_length = 90
