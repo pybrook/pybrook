@@ -36,12 +36,19 @@ async def test_splitter(redis_async: aioredis.Redis):
     splitter = Splitter(group_name='splitter', redis_url=TEST_REDIS_URI, input_streams=['test_input'])
     await splitter.create_groups_async()
     async with redis_async.pipeline() as p:
-        for i in range(10):
+        for i in range(20000):
             await p.xadd('test_input', {OBJECT_ID_FIELD: 'Vehicle 1', 'a': f'{i}', 'b': f'{i + 1}'})
         await p.execute()
+    tasks = []
+    for _ in range(32):
+        task = asyncio.create_task(splitter.run_async())
+        tasks.append(task)
+
     with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(splitter.run_async(), timeout=1)
+        await asyncio.wait_for(asyncio.wait(tasks), timeout=1)
     message = (await redis_async.xread(streams={'@a': '0-0'}, count=1))[0]
+
+    assert (await redis_async.xlen('@a')) == 20000
     assert message[0] == '@a'
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
 
@@ -54,15 +61,20 @@ def test_splitter_sync(redis_sync: redis.Redis):
     splitter = Splitter(group_name='splitter', redis_url=TEST_REDIS_URI, input_streams=['test_input'])
     splitter.create_groups_sync()
     with redis_sync.pipeline() as p:
-        for i in range(10):
+        for i in range(60000):
             p.xadd('test_input', {OBJECT_ID_FIELD: 'Vehicle 1', 'a': f'{i}', 'b': f'{i + 1}'})
         p.execute()
 
-    proc = Process(target=splitter.run_sync)
-    proc.start()
+    ps = []
+    for i in range(16):
+        proc = Process(target=splitter.run_sync)
+        proc.start()
+        ps.append(proc)
     sleep(1)
-    proc.terminate()
-    proc.kill()
+    for p in ps:
+        p.kill()
+
+    assert redis_sync.xlen('@a') == 60000
     message = redis_sync.xread(streams={'@a': '0-0'}, count=1)[0]
     assert message[0] == '@a'
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
