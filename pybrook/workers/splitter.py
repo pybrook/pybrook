@@ -163,6 +163,19 @@ class Splitter(StreamConsumer):
 
 
 class DependencyResolver(StreamConsumer):
+
+    def __init__(self, *, redis_url: str, resolver_name: str, dependency_names: Iterable[str],
+                 read_chunk_length: int = 1):
+        input_streams = tuple(f'{INTERNAL_FIELD_PREFIX}{name}' for name in dependency_names)
+        self._dependency_names = dependency_names
+        self._resolver_name = resolver_name
+        super().__init__(redis_url=redis_url, consumer_group_name=resolver_name, input_streams=input_streams,
+                         read_chunk_length=read_chunk_length)
+
+    @property
+    def output_stream(self):
+        return f'{INTERNAL_FIELD_PREFIX}{self._resolver_name}_deps'
+
     async def process_message_async(
             self, stream: bytes, message: Dict[str, str], *,
             redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:

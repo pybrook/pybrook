@@ -13,7 +13,7 @@ import redis
 
 from pybrook.config import OBJECT_ID_FIELD
 from pybrook.workers import Splitter
-from pybrook.workers.splitter import StreamConsumer, Worker
+from pybrook.workers.splitter import StreamConsumer, Worker, DependencyResolver
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
 
@@ -59,6 +59,15 @@ def test_input(redis_sync) -> List[Dict[str, str]]:
             data.append(item)
         p.execute()
     return data
+
+
+@pytest.fixture()
+def test_dependency(redis_sync) -> List[Dict[str, str]]:
+    with redis_sync.pipeline() as p:
+        for i in range(10):
+            p.xadd('@a', {'@_msg_id': f'Vehicle 1:{i}', 'a': str(i)})
+            p.xadd('@b', {'@_msg_id': f'Vehicle 1:{i}', 'b': str(i)})
+        p.execute()
 
 
 @pytest.mark.parametrize('mode', ('sync', 'async'))
@@ -147,3 +156,18 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input):
     message = redis_sync.xread(streams={'@b': '0-0'}, count=1)[0]
     assert message[0] == '@b'
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
+
+
+def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency):
+    resolver = DependencyResolver(resolver_name='ab_resolver', dependency_names=['a', 'b'], redis_url=TEST_REDIS_URI)
+    resolver.create_groups_sync()
+    ps = []
+    for i in range(16):
+        proc = Process(target=resolver.run_sync)
+        ps.append(proc)
+        proc.start()
+
+    for p in ps:
+        p.join()
+
+    assert redis_sync.xlen(resolver.output_stream) == 10
