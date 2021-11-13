@@ -11,22 +11,22 @@ import aioredis
 import pytest
 import redis
 
-from pybrook.config import OBJECT_ID_FIELD, MSG_ID_FIELD
+from pybrook.config import MSG_ID_FIELD, OBJECT_ID_FIELD
 from pybrook.workers import Splitter
 from pybrook.workers.splitter import DependencyResolver, StreamConsumer, Worker
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
 
-
-@pytest.fixture(autouse=True)
-def replace_process_with_thread(monkeypatch):
-    monkeypatch.setattr(multiprocessing, 'Process', threading.Thread)
-    from time import time
-    t = time()
-    monkeypatch.setattr(
-        StreamConsumer, 'active',
-        property(fget=lambda s: time() < t + 1, fset=lambda s, v: None))
-    monkeypatch.setattr(signal, 'signal', lambda *args: None)
+# @pytest.fixture(autouse=True)
+# def replace_process_with_thread(monkeypatch):
+#     monkeypatch.setattr(multiprocessing, 'Process', threading.Thread)
+#     from time import time
+#     t = time()
+#     monkeypatch.setattr(
+#         StreamConsumer, 'active',
+#         property(fget=lambda s: time() < t + 1, fset=lambda s, v: None))
+#     monkeypatch.setattr(signal, 'signal', lambda *args: None)
+#
 
 
 @pytest.fixture
@@ -53,7 +53,7 @@ def redis_sync():
 def test_input_perf(redis_sync) -> List[Dict[str, str]]:
     data = []
     with redis_sync.pipeline() as p:
-        for i in range(3000):
+        for i in range(100000):
             item = {OBJECT_ID_FIELD: 'Vehicle 1', 'a': f'{i}', 'b': f'{i + 1}'}
             p.xadd('test_input', item)
             data.append(item)
@@ -202,10 +202,14 @@ def test_perf(test_input_perf, redis_sync):
 
     t = time()
     splitter_procs = Worker(splitter).run_sync(processes_num=4)
-    resolver_procs = Worker(resolver).run_sync(processes_num=4)
+    resolver_procs = Worker(resolver).run_sync(processes_num=8)
+    sleep(1)
     for p in splitter_procs + resolver_procs:
-        p.join()
+        p.terminate()
+
     print(time() - t)
-    assert [redis_sync.xlen('@a'),
-            redis_sync.xlen('@b'),
-            redis_sync.xlen(resolver.output_stream_key)] == [3000] * 3
+    assert [
+        redis_sync.xlen('@a'),
+        redis_sync.xlen('@b'),
+        redis_sync.xlen(resolver.output_stream_key)
+    ] == [10000] * 3

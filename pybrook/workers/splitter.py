@@ -73,7 +73,7 @@ class StreamConsumer:
                 if 'BUSYGROUP' not in str(e):
                     raise e
 
-    def stop(self, signum, frame):
+    def stop(self, signum=None, frame=None):
         self._active = False
 
     @property

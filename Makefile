@@ -19,3 +19,8 @@ build_docs:
 .PHONY: serve_docs
 serve_docs:
 	poetry run mkdocs serve
+
+.PHONY: thesis
+thesis:
+	$(MAKE) -C $@
+	evince thesis/thesis.pdf
