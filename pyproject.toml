@@ -13,6 +13,8 @@ uvicorn = "^0.15.0"
 pytest = "^6.2.5"
 redis = "^3.5.3"
 loguru = "^0.5.3"
+Pillow = "^8.4.0"
+pandoc-crossref = "^0.1.1"
 
 [tool.poetry.dev-dependencies]
 # docs
