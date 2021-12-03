@@ -1,5 +1,5 @@
 *.egg-info
-dist/
+./dist/
 *.zip
 *.pyc
 __pycache__/
