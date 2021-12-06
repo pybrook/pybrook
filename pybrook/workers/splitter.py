@@ -8,7 +8,7 @@ import aioredis
 import redis
 from loguru import logger
 
-from pybrook.config import INTERNAL_FIELD_PREFIX, MSG_ID_FIELD, OBJECT_ID_FIELD
+from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD, OBJECT_ID_FIELD
 
 CONSUMER_NAME_LENGTH = 64
 
@@ -25,7 +25,6 @@ class StreamConsumer:
         self._active = False
         self._read_chunk_length = read_chunk_length
         self.input_streams = tuple(input_streams)
-        self.consumer_name = secrets.token_urlsafe(CONSUMER_NAME_LENGTH)
 
     @property
     def input_streams(self) -> Tuple[str, ...]:
@@ -37,14 +36,16 @@ class StreamConsumer:
 
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:
+            redis_conn: aioredis.Redis,
+            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         raise NotImplementedError(
             f'Async version of process_message for {type(self).__name__} not implemented.'
         )
 
     def process_message_sync(
             self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:
+            redis_conn: redis.Redis,
+            pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         raise NotImplementedError(
             f'Sync version of process_message for {type(self).__name__} not implemented.'
         )
@@ -88,16 +89,22 @@ class StreamConsumer:
         signal.signal(signal.SIGTERM, self.stop)
         redis_conn: aioredis.Redis = await aioredis.from_url(self._redis_url)
         self.active = True
+        xreadgroup_params = self._xreadgroup_params
         while self.active:
-            response = await redis_conn.xreadgroup(**self._xreadgroup_params)
+            response = await redis_conn.xreadgroup(**xreadgroup_params)
             for stream, messages in response:
-                for _, payload in messages:
-                    result = await self.process_message_async(
-                        stream, payload, redis_conn=redis_conn)
-                    async with redis_conn.pipeline() as p:
+                for msg_id, payload in messages:
+                    async with redis_conn.pipeline(transaction=True) as p:
+                        result = await self.process_message_async(
+                            stream, payload, redis_conn=redis_conn, pipeline=p)
                         for out_stream, out_msg in result.items():
-                            await p.xadd(out_stream, out_msg)
-                        await p.execute()
+                            p.xadd(out_stream, out_msg)
+                        p.xack(stream, self._consumer_group_name, msg_id)
+                        try:
+                            await p.execute()
+                        except aioredis.WatchError:
+                            await redis_conn.xack(stream, self._consumer_group_name, msg_id)
+                            logger.debug(f'WatchError in {self}')
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
 
@@ -105,27 +112,33 @@ class StreamConsumer:
         signal.signal(signal.SIGTERM, self.stop)
         redis_conn: redis.Redis = redis.from_url(self._redis_url)
         self._active = True
+        xreadgroup_params = self._xreadgroup_params
         while self.active:
-            response = redis_conn.xreadgroup(**self._xreadgroup_params)
+            response = redis_conn.xreadgroup(**xreadgroup_params)
             for stream, messages in response:
-                for _, payload in messages:
-                    result = self.process_message_sync(stream,
-                                                       payload,
-                                                       redis_conn=redis_conn)
+                for msg_id, payload in messages:
                     with redis_conn.pipeline() as p:
+                        result = self.process_message_sync(
+                            stream, payload, redis_conn=redis_conn, pipeline=p)
                         for out_stream, out_msg in result.items():
                             p.xadd(out_stream, out_msg)
-                        p.execute()
+                        p.xack(stream, self._consumer_group_name, msg_id)
+                        try:
+                            p.execute()
+                        except redis.WatchError:
+                            redis_conn.xack(stream, self._consumer_group_name, msg_id)
+                            logger.debug(f'WatchError in {self}')
         redis_conn.close()
         redis_conn.connection_pool.disconnect()
 
     @property
     def _xreadgroup_params(self) -> Mapping:
+        consumer_name = secrets.token_urlsafe(CONSUMER_NAME_LENGTH)
         return {
             'streams': {s: '>'
                         for s in self.input_streams},
             'groupname': self._consumer_group_name,
-            'consumername': self.consumer_name,
+            'consumername': consumer_name,
             'count': self._read_chunk_length,
             'block': 10
         }
@@ -134,32 +147,34 @@ class StreamConsumer:
 class Splitter(StreamConsumer):
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:
+            redis_conn: aioredis.Redis,
+            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         obj_id = message.pop(OBJECT_ID_FIELD)
-        obj_msg_id = await redis_conn.incr(
-            f'{INTERNAL_FIELD_PREFIX}id@{obj_id}')
+        obj_msg_id = await redis_conn.incr(self.get_obj_msg_id_key(obj_id))
+        return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
+
+    @staticmethod
+    def split_msg(message: Dict[str, str], *, obj_id: str, obj_msg_id: str):
         message_id = f'{obj_id}:{obj_msg_id}'
         return {
-            f'{INTERNAL_FIELD_PREFIX}{k}': {
+            f'{FIELD_PREFIX}{k}': {
                 MSG_ID_FIELD: message_id,
                 k: v
             }
             for k, v in message.items()
         }
 
+    @staticmethod
+    def get_obj_msg_id_key(obj_id: str):
+        return f'{FIELD_PREFIX}id{FIELD_PREFIX}{obj_id}'
+
     def process_message_sync(self, stream_name, message, *,
-                             redis_conn: aioredis.Redis):
+                             redis_conn: aioredis.Redis,
+                             pipeline: aioredis.client.Pipeline):
         obj_id = message.pop(OBJECT_ID_FIELD)
         obj_msg_id = str(
-            redis_conn.incr(f'{INTERNAL_FIELD_PREFIX}id@{obj_id}'))
-        message_id = f'{obj_id}:{obj_msg_id}'
-        return {
-            f'{INTERNAL_FIELD_PREFIX}{k}': {
-                MSG_ID_FIELD: message_id,
-                k: v
-            }
-            for k, v in message.items()
-        }
+            redis_conn.incr(self.get_obj_msg_id_key(obj_id)))
+        return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
 
 
 class DependencyResolver(StreamConsumer):
@@ -172,7 +187,7 @@ class DependencyResolver(StreamConsumer):
         self._dependency_names = tuple(set(dependency_names))
         self._num_dependencies = len(dependency_names)
         self._resolver_name = resolver_name
-        input_streams = tuple(f'{INTERNAL_FIELD_PREFIX}{name}'
+        input_streams = tuple(f'{FIELD_PREFIX}{name}'
                               for name in self._dependency_names)
         super().__init__(redis_url=redis_url,
                          consumer_group_name=resolver_name,
@@ -181,25 +196,30 @@ class DependencyResolver(StreamConsumer):
 
     @property
     def output_stream_key(self):
-        return f'{INTERNAL_FIELD_PREFIX}{self._resolver_name}_deps'
+        return f'{FIELD_PREFIX}{self._resolver_name}_deps'
 
     def dependency_map_key(self, message_id: str):
-        return f'{self.output_stream_key}{INTERNAL_FIELD_PREFIX}{message_id}'
+        return f'{self.output_stream_key}{FIELD_PREFIX}{message_id}'
 
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:
-        ...
+            redis_conn: aioredis.Redis,
+            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+        raise NotImplementedError
 
     def process_message_sync(
             self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis) -> Dict[str, Dict[str, str]]:
+            redis_conn: aioredis.Redis,
+            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         field_name = stream_name[1:]
         field_value = message[field_name]
         message_id = message[MSG_ID_FIELD]
         dep_key = self.dependency_map_key(message_id)
         redis_conn.hset(dep_key, field_name, field_value)
+        pipeline.watch(dep_key)
         if redis_conn.hlen(dep_key) == self._num_dependencies:
+            pipeline.multi()
+            pipeline.delete(dep_key)
             return {
                 self.output_stream_key: {
                     MSG_ID_FIELD: message_id,
