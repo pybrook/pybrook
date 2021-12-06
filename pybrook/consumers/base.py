@@ -1,14 +1,11 @@
-import asyncio
-import multiprocessing
 import secrets
 import signal
-from typing import Any, Callable, Dict, Iterable, Mapping, Tuple
+from typing import Iterable, Tuple, Dict, Mapping
 
 import aioredis
 import redis
 from loguru import logger
 
-from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD, OBJECT_ID_FIELD
 
 CONSUMER_NAME_LENGTH = 64
 
@@ -142,143 +139,3 @@ class StreamConsumer:
             'count': self._read_chunk_length,
             'block': 10
         }
-
-
-class Splitter(StreamConsumer):
-    async def process_message_async(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        obj_id = message.pop(OBJECT_ID_FIELD)
-        obj_msg_id = await redis_conn.incr(self.get_obj_msg_id_key(obj_id))
-        return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
-
-    @staticmethod
-    def split_msg(message: Dict[str, str], *, obj_id: str, obj_msg_id: str):
-        message_id = f'{obj_id}:{obj_msg_id}'
-        return {
-            f'{FIELD_PREFIX}{k}': {
-                MSG_ID_FIELD: message_id,
-                k: v
-            }
-            for k, v in message.items()
-        }
-
-    @staticmethod
-    def get_obj_msg_id_key(obj_id: str):
-        return f'{FIELD_PREFIX}id{FIELD_PREFIX}{obj_id}'
-
-    def process_message_sync(self, stream_name, message, *,
-                             redis_conn: aioredis.Redis,
-                             pipeline: aioredis.client.Pipeline):
-        obj_id = message.pop(OBJECT_ID_FIELD)
-        obj_msg_id = str(
-            redis_conn.incr(self.get_obj_msg_id_key(obj_id)))
-        return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
-
-
-class DependencyResolver(StreamConsumer):
-    def __init__(self,
-                 *,
-                 redis_url: str,
-                 resolver_name: str,
-                 dependency_names: Iterable[str],
-                 read_chunk_length: int = 1):
-        self._dependency_names = tuple(set(dependency_names))
-        self._num_dependencies = len(dependency_names)
-        self._resolver_name = resolver_name
-        input_streams = tuple(f'{FIELD_PREFIX}{name}'
-                              for name in self._dependency_names)
-        super().__init__(redis_url=redis_url,
-                         consumer_group_name=resolver_name,
-                         input_streams=input_streams,
-                         read_chunk_length=read_chunk_length)
-
-    @property
-    def output_stream_key(self):
-        return f'{FIELD_PREFIX}{self._resolver_name}_deps'
-
-    def dependency_map_key(self, message_id: str):
-        return f'{self.output_stream_key}{FIELD_PREFIX}{message_id}'
-
-    async def process_message_async(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        raise NotImplementedError
-
-    def process_message_sync(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        field_name = stream_name[1:]
-        field_value = message[field_name]
-        message_id = message[MSG_ID_FIELD]
-        dep_key = self.dependency_map_key(message_id)
-        redis_conn.hset(dep_key, field_name, field_value)
-        pipeline.watch(dep_key)
-        if redis_conn.hlen(dep_key) == self._num_dependencies:
-            pipeline.multi()
-            pipeline.delete(dep_key)
-            return {
-                self.output_stream_key: {
-                    MSG_ID_FIELD: message_id,
-                    **redis_conn.hgetall(dep_key)
-                }
-            }
-        return {}
-
-
-DEFAULT_PROCESSES_NUM = multiprocessing.cpu_count()
-
-
-class Worker:
-    def __init__(self, consumer: StreamConsumer):
-        self._consumer = consumer
-
-    def run_sync(self, *, processes_num: int = DEFAULT_PROCESSES_NUM):
-        return self._spawn_sync(processes_num=processes_num)
-
-    def run_async(self,
-                  *,
-                  processes_num: int = DEFAULT_PROCESSES_NUM,
-                  coroutines_num: int = 8):
-        return self._spawn_async(processes_num=processes_num,
-                                 coroutines_num=coroutines_num)
-
-    def _spawn_sync(self, processes_num: int):
-        return self._spawn(target=self._consumer.run_sync,
-                           processes_num=processes_num)
-
-    def _async_wrapper(self, coroutines_num: int):
-        policy = asyncio.get_event_loop_policy()
-        asyncio.set_event_loop(policy.new_event_loop())
-        coroutines = [
-            self._consumer.run_async() for _ in range(coroutines_num)
-        ]
-        asyncio.get_event_loop().run_until_complete(
-            asyncio.gather(*coroutines))
-
-    def _spawn_async(self, *, processes_num: int, coroutines_num: int):
-        return self._spawn(target=self._async_wrapper,
-                           args=(coroutines_num, ),
-                           processes_num=processes_num)
-
-    def _spawn(
-            self,
-            *,
-            target: Callable,
-            processes_num: int,
-            args: Tuple[Any, ...] = (),
-    ) -> Iterable[multiprocessing.Process]:
-        processes = []
-        self._consumer.create_groups_sync()
-
-        for _ in range(processes_num):
-            proc = multiprocessing.Process(target=target, args=args)
-            proc.start()
-            processes.append(proc)
-        logger.info(
-            f'Spawned {processes_num} processes for {type(self._consumer).__name__}'
-        )
-        return processes

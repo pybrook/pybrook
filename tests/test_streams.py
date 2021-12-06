@@ -13,8 +13,10 @@ import redis
 from loguru import logger
 
 from pybrook.config import MSG_ID_FIELD, OBJECT_ID_FIELD
-from pybrook.workers import Splitter
-from pybrook.workers.splitter import DependencyResolver, StreamConsumer, Worker
+from pybrook.consumers import Splitter
+from pybrook.consumers.dependency_resolver import DependencyResolver
+from pybrook.consumers.worker import Worker
+from pybrook.consumers.base import StreamConsumer
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
 
