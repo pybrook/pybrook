@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List
 
 import aioredis
@@ -13,8 +14,9 @@ class DependencyResolver(StreamConsumer):
                  *,
                  redis_url: str,
                  resolver_name: str,
+                 output_stream_name: str = None,
                  dependencies: Dict[str, str],
-                 read_chunk_length: int = 1):
+                 read_chunk_length: int = 10):
         """
 
         Args:
@@ -29,18 +31,21 @@ class DependencyResolver(StreamConsumer):
         self._dependencies = dependencies
         self._num_dependencies = len(dependencies)
         self._resolver_name = resolver_name
+        if not output_stream_name:
+            output_stream_name = f'{FIELD_PREFIX}{self._resolver_name}{FIELD_PREFIX}deps'
+        self.output_stream_name: str = output_stream_name
         input_streams = list(dependencies.keys())
         super().__init__(redis_url=redis_url,
                          consumer_group_name=resolver_name,
                          input_streams=input_streams,
                          read_chunk_length=read_chunk_length)
 
-    @property
-    def output_stream_key(self):
-        return f'{FIELD_PREFIX}{self._resolver_name}_deps'
+    def __repr__(self):
+        return f'<{self.__class__.__name__} output_stream_name=\'{self.output_stream_name}\'' \
+               f' input_streams={self.input_streams}, dependencies={self._dependencies}>'
 
     def dependency_map_key(self, message_id: str):
-        return f'{self.output_stream_key}{FIELD_PREFIX}{message_id}'
+        return f'{self.output_stream_name}{FIELD_PREFIX}{message_id}'
 
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
@@ -58,13 +63,15 @@ class DependencyResolver(StreamConsumer):
         message_id = message[MSG_ID_FIELD]
         dep_key = self.dependency_map_key(message_id)
         redis_conn.hset(dep_key, dependency_name, field_value)
-        logger.debug(f'{self._resolver_name}: HSET {dep_key} {dependency_name} {field_value}')
+        logger.debug(
+            f'{self._resolver_name} ({os.getpid()}): HSET {dep_key} {dependency_name} {field_value}'
+        )
         pipeline.watch(dep_key)
         if redis_conn.hlen(dep_key) == self._num_dependencies:
             pipeline.multi()
             pipeline.delete(dep_key)
             return {
-                self.output_stream_key: {
+                self.output_stream_name: {
                     MSG_ID_FIELD: message_id,
                     **redis_conn.hgetall(dep_key)
                 }

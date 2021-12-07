@@ -22,6 +22,9 @@ class StreamConsumer:
         self._read_chunk_length = read_chunk_length
         self.input_streams = tuple(input_streams)
 
+    def __repr__(self):
+        return f'<{self.__class__.__name__} input_streams={self.input_streams}>'
+
     @property
     def input_streams(self) -> Tuple[str, ...]:
         return tuple(self._input_streams)
@@ -47,7 +50,7 @@ class StreamConsumer:
         )
 
     async def create_groups_async(self):
-        redis_conn: aioredis.Redis = await aioredis.from_url(self._redis_url)
+        redis_conn: aioredis.Redis = await aioredis.from_url(self._redis_url, encoding='utf-8', decode_responses=True)
         for stream in self.input_streams:
             try:
                 await redis_conn.xgroup_create(stream,
@@ -59,7 +62,7 @@ class StreamConsumer:
                     raise e
 
     def create_groups_sync(self):
-        redis_conn = redis.from_url(self._redis_url)
+        redis_conn = redis.from_url(self._redis_url, encoding='utf-8', decode_responses=True)
         for stream in self.input_streams:
             try:
                 redis_conn.xgroup_create(stream,
@@ -83,14 +86,14 @@ class StreamConsumer:
 
     async def run_async(self):  # noqa: WPS217
         signal.signal(signal.SIGTERM, self.stop)
-        redis_conn: aioredis.Redis = await aioredis.from_url(self._redis_url)
+        redis_conn: aioredis.Redis = await aioredis.from_url(self._redis_url, encoding='utf-8', decode_responses=True)
         self.active = True
         xreadgroup_params = self._xreadgroup_params
         while self.active:
             response = await redis_conn.xreadgroup(**xreadgroup_params)
             for stream, messages in response:
                 for msg_id, payload in messages:
-                    async with redis_conn.pipeline(transaction=True) as p:
+                    async with redis_conn.pipeline() as p:
                         result = await self.process_message_async(
                             stream, payload, redis_conn=redis_conn, pipeline=p)
                         for out_stream, out_msg in result.items():
@@ -102,13 +105,13 @@ class StreamConsumer:
                             await redis_conn.xack(stream,
                                                   self._consumer_group_name,
                                                   msg_id)
-                            logger.debug(f'WatchError in {self}')
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
 
     def run_sync(self):
         signal.signal(signal.SIGTERM, self.stop)
-        redis_conn: redis.Redis = redis.from_url(self._redis_url)
+        signal.signal(signal.SIGINT, self.stop)
+        redis_conn: redis.Redis = redis.from_url(self._redis_url, encoding='utf-8', decode_responses=True)
         self._active = True
         xreadgroup_params = self._xreadgroup_params
         while self.active:
@@ -126,7 +129,6 @@ class StreamConsumer:
                         except redis.WatchError:
                             redis_conn.xack(stream, self._consumer_group_name,
                                             msg_id)
-                            logger.debug(f'WatchError in {self}')
         redis_conn.close()
         redis_conn.connection_pool.disconnect()
 

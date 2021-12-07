@@ -3,23 +3,31 @@ from typing import Dict, Iterable
 import aioredis
 import redis
 
-from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD, OBJECT_ID_FIELD
+from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
 from pybrook.consumers.base import StreamConsumer
 
 
 class Splitter(StreamConsumer):
-
-    def __init__(self, *, redis_url: str, consumer_group_name: str, input_streams: Iterable[str], namespace: str,
+    def __init__(self,
+                 *,
+                 redis_url: str,
+                 consumer_group_name: str,
+                 input_streams: Iterable[str],
+                 object_id_field: str,
+                 namespace: str,
                  read_chunk_length: int = 1):
         self.namespace: str = namespace
-        super().__init__(redis_url=redis_url, consumer_group_name=consumer_group_name, input_streams=input_streams,
+        self.object_id_field: str = object_id_field
+        super().__init__(redis_url=redis_url,
+                         consumer_group_name=consumer_group_name,
+                         input_streams=input_streams,
                          read_chunk_length=read_chunk_length)
 
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: aioredis.Redis,
             pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        obj_id = message.pop(OBJECT_ID_FIELD)
+        obj_id = message[self.object_id_field]
         obj_msg_id = await redis_conn.incr(self.get_obj_msg_id_key(obj_id))
         return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
 
@@ -41,6 +49,6 @@ class Splitter(StreamConsumer):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        obj_id = message.pop(OBJECT_ID_FIELD)
+        obj_id = message[self.object_id_field]
         obj_msg_id = str(redis_conn.incr(self.get_obj_msg_id_key(obj_id)))
         return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)

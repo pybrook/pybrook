@@ -23,7 +23,8 @@ class Worker:
         return self._spawn_async(processes_num=processes_num,
                                  coroutines_num=coroutines_num)
 
-    def _spawn_sync(self, processes_num: int):
+    def _spawn_sync(self,
+                    processes_num: int) -> Iterable[multiprocessing.Process]:
         return self._spawn(target=self._consumer.run_sync,
                            processes_num=processes_num)
 
@@ -36,7 +37,8 @@ class Worker:
         asyncio.get_event_loop().run_until_complete(
             asyncio.gather(*coroutines))
 
-    def _spawn_async(self, *, processes_num: int, coroutines_num: int):
+    def _spawn_async(self, *, processes_num: int,
+                     coroutines_num: int) -> Iterable[multiprocessing.Process]:
         return self._spawn(target=self._async_wrapper,
                            args=(coroutines_num, ),
                            processes_num=processes_num)
@@ -59,3 +61,17 @@ class Worker:
             f'Spawned {processes_num} processes for {type(self._consumer).__name__}'
         )
         return processes
+
+
+class WorkerManager:
+    def __init__(self, consumers: Iterable[StreamConsumer]):
+        self.consumers = consumers
+
+    def run(self):
+        processes = []
+        for c in self.consumers:
+            logger.info(f'Spawning worker for {c}...')
+            processes.extend(Worker(c).run_sync(processes_num=1))
+        for p in processes:
+            p.join()
+

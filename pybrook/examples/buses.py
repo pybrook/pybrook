@@ -38,4 +38,5 @@ class CourseReport(OutReport):
     speed = ReportField(LocationReport.speed)
 
 
-print(LocationReport.time)
+if __name__ == '__main__':
+    brook.run()
