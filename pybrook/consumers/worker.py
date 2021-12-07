@@ -71,7 +71,7 @@ class WorkerManager:
         processes = []
         for c in self.consumers:
             logger.info(f'Spawning worker for {c}...')
-            processes.extend(Worker(c).run_sync(processes_num=1))
+            processes.extend(Worker(c).run_sync(processes_num=8))
         for p in processes:
             p.join()
 
