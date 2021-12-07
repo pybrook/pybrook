@@ -1,11 +1,10 @@
 import secrets
 import signal
-from typing import Iterable, Tuple, Dict, Mapping
+from typing import Dict, Iterable, Mapping, Tuple
 
 import aioredis
 import redis
 from loguru import logger
-
 
 CONSUMER_NAME_LENGTH = 64
 
@@ -100,7 +99,9 @@ class StreamConsumer:
                         try:
                             await p.execute()
                         except aioredis.WatchError:
-                            await redis_conn.xack(stream, self._consumer_group_name, msg_id)
+                            await redis_conn.xack(stream,
+                                                  self._consumer_group_name,
+                                                  msg_id)
                             logger.debug(f'WatchError in {self}')
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
@@ -123,7 +124,8 @@ class StreamConsumer:
                         try:
                             p.execute()
                         except redis.WatchError:
-                            redis_conn.xack(stream, self._consumer_group_name, msg_id)
+                            redis_conn.xack(stream, self._consumer_group_name,
+                                            msg_id)
                             logger.debug(f'WatchError in {self}')
         redis_conn.close()
         redis_conn.connection_pool.disconnect()

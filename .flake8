@@ -7,6 +7,7 @@ per-file-ignores =
     pybrook/__init__.py:WPS412
 
 ignore =
+    WPS602
     # redundant with W0622 (builtin override), which is more precise about line number
     A001
     # missing docstring in magic method

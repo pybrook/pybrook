@@ -1,6 +1,6 @@
 import asyncio
 import multiprocessing
-from typing import Callable, Tuple, Any, Iterable
+from typing import Any, Callable, Iterable, Tuple
 
 from loguru import logger
 

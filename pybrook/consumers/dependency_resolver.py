@@ -1,6 +1,7 @@
-from typing import Iterable, Dict
+from typing import Dict, List
 
 import aioredis
+import redis
 
 from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
 from pybrook.consumers.base import StreamConsumer
@@ -11,7 +12,7 @@ class DependencyResolver(StreamConsumer):
                  *,
                  redis_url: str,
                  resolver_name: str,
-                 dependency_names: Iterable[str],
+                 dependency_names: List[str],
                  read_chunk_length: int = 1):
         self._dependency_names = tuple(set(dependency_names))
         self._num_dependencies = len(dependency_names)
@@ -38,8 +39,8 @@ class DependencyResolver(StreamConsumer):
 
     def process_message_sync(
             self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+            redis_conn: redis.Redis,
+            pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         field_name = stream_name[1:]
         field_value = message[field_name]
         message_id = message[MSG_ID_FIELD]

@@ -14,9 +14,9 @@ from loguru import logger
 
 from pybrook.config import MSG_ID_FIELD, OBJECT_ID_FIELD
 from pybrook.consumers import Splitter
+from pybrook.consumers.base import StreamConsumer
 from pybrook.consumers.dependency_resolver import DependencyResolver
 from pybrook.consumers.worker import Worker
-from pybrook.consumers.base import StreamConsumer
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
 
@@ -89,14 +89,16 @@ def test_dependency(redis_sync) -> List[Dict[str, str]]:
 
 
 @pytest.mark.parametrize('mode', ('sync', 'async'))
-def test_worker(test_input, redis_sync, mode, limit_time, replace_process_with_thread):
+def test_worker(test_input, redis_sync, mode, limit_time,
+                replace_process_with_thread):
     messages = multiprocessing.Manager().list()
     random.seed(16)
 
     class TestConsumer(StreamConsumer):
         def process_message_sync(
                 self, stream_name: bytes, message: Dict[str, str], *,
-                redis_conn: aioredis.Redis, pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+                redis_conn: aioredis.Redis,
+                pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
             # simulate out of order execution
             sleep(random.choice([0, 0.5]))
             messages.append(message)
@@ -104,7 +106,8 @@ def test_worker(test_input, redis_sync, mode, limit_time, replace_process_with_t
 
         async def process_message_async(
                 self, stream_name: bytes, message: Dict[str, str], *,
-                redis_conn: aioredis.Redis, pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+                redis_conn: aioredis.Redis, pipeline: aioredis.client.Pipeline
+        ) -> Dict[str, Dict[str, str]]:
             # simulate out of order execution
             await asyncio.sleep(random.choice([0, 0.5]))
             messages.append(message)
@@ -153,7 +156,8 @@ async def test_splitter_async(redis_async: aioredis.Redis, test_input,
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
 
 
-def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time, replace_process_with_thread):
+def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
+                       replace_process_with_thread):
     splitter = Splitter(consumer_group_name='splitter',
                         redis_url=TEST_REDIS_URI,
                         input_streams=['test_input'])
