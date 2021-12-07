@@ -135,6 +135,7 @@ def test_worker(test_input, redis_sync, mode, limit_time,
 async def test_splitter_async(redis_async: aioredis.Redis, test_input,
                               replace_process_with_thread, limit_time):
     splitter = Splitter(consumer_group_name='splitter',
+                        namespace='test',
                         redis_url=TEST_REDIS_URI,
                         input_streams=['test_input'])
     await splitter.create_groups_async()
@@ -144,21 +145,21 @@ async def test_splitter_async(redis_async: aioredis.Redis, test_input,
         tasks.append(task)
 
     await asyncio.wait(tasks)
-    message = (await redis_async.xread(streams={'@a': '0-0'}, count=1))[0]
+    message = (await redis_async.xread(streams={'@test@a': '0-0'}, count=1))[0]
 
-    assert len(test_input) == len(test_input)
-    assert (await redis_async.xlen('@a')) == len(test_input)
-    assert message[0] == '@a'
+    assert (await redis_async.xlen('@test@a')) == len(test_input)
+    assert message[0] == '@test@a'
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
 
-    message = (await redis_async.xread(streams={'@b': '0-0'}, count=1))[0]
-    assert message[0] == '@b'
+    message = (await redis_async.xread(streams={'@test@b': '0-0'}, count=1))[0]
+    assert message[0] == '@test@b'
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
 
 
 def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
                        replace_process_with_thread):
     splitter = Splitter(consumer_group_name='splitter',
+                        namespace='test',
                         redis_url=TEST_REDIS_URI,
                         input_streams=['test_input'])
     splitter.create_groups_sync()
@@ -171,20 +172,20 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
     for p in ps:
         p.join()
 
-    assert redis_sync.xlen('@a') == len(test_input)
-    message = redis_sync.xread(streams={'@a': '0-0'}, count=1)[0]
-    assert message[0] == '@a'
+    assert redis_sync.xlen('@test@a') == len(test_input)
+    message = redis_sync.xread(streams={'@test@a': '0-0'}, count=1)[0]
+    assert message[0] == '@test@a'
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
 
-    message = redis_sync.xread(streams={'@b': '0-0'}, count=1)[0]
-    assert message[0] == '@b'
+    message = redis_sync.xread(streams={'@test@b': '0-0'}, count=1)[0]
+    assert message[0] == '@test@b'
     assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
 
 
 def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
                                   limit_time, replace_process_with_thread):
     resolver = DependencyResolver(resolver_name='ab_resolver',
-                                  dependency_names=['a', 'b'],
+                                  dependencies={'@a': 'a', '@b': 'b'},
                                   redis_url=TEST_REDIS_URI)
     resolver.create_groups_sync()
     ps = []
@@ -206,10 +207,14 @@ def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
 def test_perf(test_input_perf, redis_sync):
     splitter = Splitter(consumer_group_name='splitter',
                         redis_url=TEST_REDIS_URI,
+                        namespace='test_perf',
                         read_chunk_length=10,
                         input_streams=['test_input'])
     resolver = DependencyResolver(resolver_name='ab_resolver',
-                                  dependency_names=['a', 'b'],
+                                  dependencies={
+                                      '@test_perf@a': 'a',
+                                      '@test_perf@b': 'b'
+                                  },
                                   read_chunk_length=10,
                                   redis_url=TEST_REDIS_URI)
 
@@ -226,7 +231,7 @@ def test_perf(test_input_perf, redis_sync):
         assert m_payload['@_msg_id'] not in msgids, 'Race condition check'
         msgids.add(m_payload['@_msg_id'])
     logger.warning([
-        redis_sync.xlen('@a'),
-        redis_sync.xlen('@b'),
+        redis_sync.xlen('@test_perf@a'),
+        redis_sync.xlen('@test_perf@b'),
         redis_sync.xlen(resolver.output_stream_key)
     ])

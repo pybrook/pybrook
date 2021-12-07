@@ -26,10 +26,11 @@ def calc_course_id(
     ...
 
 
-@brook.output()
+@brook.output('course-report')
 class CourseReport(OutReport):
     # course_id = ReportField(calc_course_id)
     # stop_id = ReportField(calc_course_id)
+    time: datetime = ReportField(LocationReport.time)
     latitude = ReportField(LocationReport.latitude)
     longitude = ReportField(LocationReport.longitude)
     temperature = ReportField(LocationReport.temperature)

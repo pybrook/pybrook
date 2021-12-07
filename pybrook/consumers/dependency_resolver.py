@@ -2,6 +2,7 @@ from typing import Dict, List
 
 import aioredis
 import redis
+from loguru import logger
 
 from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
 from pybrook.consumers.base import StreamConsumer
@@ -12,13 +13,23 @@ class DependencyResolver(StreamConsumer):
                  *,
                  redis_url: str,
                  resolver_name: str,
-                 dependency_names: List[str],
+                 dependencies: Dict[str, str],
                  read_chunk_length: int = 1):
-        self._dependency_names = tuple(set(dependency_names))
-        self._num_dependencies = len(dependency_names)
+        """
+
+        Args:
+            redis_url:
+            resolver_name:
+            dependencies:
+                Keys are source streams, values are dependency names used as keys in the output stream.
+                Source streams should contain just the internal msgid and values
+                for the specific field.
+            read_chunk_length:
+        """
+        self._dependencies = dependencies
+        self._num_dependencies = len(dependencies)
         self._resolver_name = resolver_name
-        input_streams = tuple(f'{FIELD_PREFIX}{name}'
-                              for name in self._dependency_names)
+        input_streams = list(dependencies.keys())
         super().__init__(redis_url=redis_url,
                          consumer_group_name=resolver_name,
                          input_streams=input_streams,
@@ -41,11 +52,13 @@ class DependencyResolver(StreamConsumer):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        field_name = stream_name[1:]
+        field_name = stream_name.split('@')[-1]
+        dependency_name = self._dependencies[stream_name]
         field_value = message[field_name]
         message_id = message[MSG_ID_FIELD]
         dep_key = self.dependency_map_key(message_id)
-        redis_conn.hset(dep_key, field_name, field_value)
+        redis_conn.hset(dep_key, dependency_name, field_value)
+        logger.debug(f'{self._resolver_name}: HSET {dep_key} {dependency_name} {field_value}')
         pipeline.watch(dep_key)
         if redis_conn.hlen(dep_key) == self._num_dependencies:
             pipeline.multi()

@@ -1,6 +1,7 @@
 import dataclasses
 import inspect
 import json
+from functools import lru_cache
 from typing import (
     Any,
     AsyncIterator,
@@ -10,7 +11,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
-    get_type_hints,
+    get_type_hints, Generic,
 )
 
 import aioredis
@@ -20,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
+from consumers.dependency_resolver import DependencyResolver
 from pybrook.config import FIELD_PREFIX
 from pybrook.consumers import Splitter
 from pybrook.consumers.base import StreamConsumer
@@ -36,38 +38,6 @@ class RouteGenerator:
     def gen_routes(cls, app: FastAPI,
                    redis_dep: aioredis.Redis):
         raise NotImplementedError
-
-
-class OutReportMeta(type):
-
-    @property
-    def model(cls) -> Type[BaseModel]:
-        fields: Dict[str, ReportField] = {
-            field: member for field, member in inspect.getmembers(cls) if isinstance(member, ReportField)}
-        print(fields)
-        pydantic_fields = {
-            field: (member.source_field.value_type, pydantic.Field())
-            for field, member in fields.items()
-        }
-        if not hasattr(cls, '_model'):
-            cls._model = pydantic.create_model(
-                cls.__name__ + 'Model',
-                **pydantic_fields
-            )
-        return cls._model
-
-
-class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
-
-    @classmethod
-    def gen_routes(cls, app: FastAPI, redis_dep: aioredis.Redis):
-        @app.get(f'/{cls.__name__}', response_model=cls.model)
-        async def get_report(redis: aioredis.Redis = redis_dep):
-            ...
-
-    @classmethod
-    def gen_consumers(cls, model: 'PyBrook'):
-        ...
 
 
 class Dependency:
@@ -122,23 +92,36 @@ class InReportOptions:
         return f'{FIELD_PREFIX}{self.name}'
 
 
-class OptionsMixin:
+TOPT = TypeVar('TOPT')
+
+
+class OptionsMixin(Generic[TOPT]):
+
     @property
-    def _options(self) -> InReportOptions:
-        return self._report_options
+    def _options(self) -> TOPT:
+        return self.__options
 
     @_options.setter
-    def _options(self, report_options: InReportOptions):
+    def _options(self, options: TOPT):
+        options = self._validate_options(options)
+        self.__options = options
+
+    def _validate_options(self, options: TOPT) -> TOPT:
+        raise NotImplementedError
+
+
+class InReportMeta(OptionsMixin[InReportOptions], pydantic.main.ModelMetaclass):
+    _options: InReportOptions
+
+    def _validate_options(self, options: InReportOptions) -> InReportOptions:
         try:
-            getattr(self, report_options.id_field)
+            getattr(self, options.id_field)
         except AttributeError:
             raise RuntimeError(
                 f'Invalid id_field! {self.__name__} '
-                f'has no attribute "{report_options.id_field}".') from None
-        self._report_options = report_options
+                f'has no attribute "{options.id_field}".') from None
+        return options
 
-
-class InReportMeta(OptionsMixin, pydantic.main.ModelMetaclass):
     def __getattr__(cls, item: str) -> SourceField:  # noqa: N805
         if item in cls.__fields__ and not item.startswith('_'):  # type: ignore
             return InputField(cls, cls.__fields__[item])  # type: ignore
@@ -158,8 +141,58 @@ class InReport(ConsumerGenerator, RouteGenerator, pydantic.BaseModel, metaclass=
         @app.post(f'/{cls._options.name}',
                   name=f'Add {cls._options.name}')
         async def add_report(report: cls = fastapi.Body(...), redis: aioredis.Redis = redis_dep):  # type: ignore
-            print(jsonable_encoder(report.dict()))
             await redis.xadd(cls._options.stream_name, redisable_encoder(report))
+
+
+@dataclasses.dataclass
+class OutReportOptions:
+    name: str
+
+    @property
+    def stream_name(self):
+        return f'{FIELD_PREFIX}{self.name}'
+
+
+class OutReportMeta(OptionsMixin[OutReportOptions], type):
+    _options: OutReportOptions
+
+    def _validate_options(self, options: OutReportOptions) -> OutReportOptions:
+        return options
+
+    @property
+    @lru_cache
+    def model(cls) -> Type[BaseModel]:
+        fields: Dict[str, ReportField] = {
+            field: member for field, member in inspect.getmembers(cls) if isinstance(member, ReportField)}
+        pydantic_fields = {
+            field: (member.source_field.value_type, pydantic.Field())
+            for field, member in fields.items()
+        }
+        if not hasattr(cls, '_model'):
+            cls._model: Type[BaseModel] = pydantic.create_model(
+                cls.__name__ + 'Model',
+                **pydantic_fields  # type: ignore
+            )
+        return cls._model
+
+
+class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
+
+    @classmethod
+    def gen_routes(cls, app: FastAPI, redis_dep: aioredis.Redis):
+        @app.get(f'/{cls._options.name}', response_model=cls.model, name=f'Retrieve {cls._options.name}')
+        async def get_report(redis: aioredis.Redis = redis_dep):
+            for msg_id, msg_body in (await redis.xrevrange(cls._options.stream_name)):
+                return cls.model(**msg_body)
+            else:
+                return {}
+
+    @classmethod
+    def gen_consumers(cls, model: 'PyBrook'):
+        dependency_resolver = DependencyResolver(
+            redis_url=model.redis_url,
+            dependency_names=[]
+        )
 
 
 def redisable_encoder(model: BaseModel):
@@ -170,9 +203,9 @@ def redisable_encoder(model: BaseModel):
         if type(v) is bool:
             encoded_dict[k] = int(v)
         else:
+            # TODO: Handle this when decoding
             encoded_dict[k] = json.dumps(v)
     return encoded_dict
-
 
 
 class ReportField:
@@ -267,7 +300,9 @@ class PyBrook:
 
     def output(self, name: str = None) -> Callable[[TO], TO]:
         def wrapper(cls):
-            self.outputs[name or cls.__name__] = cls
+            name_safe = name or cls.__name__
+            self.outputs[name_safe] = cls
+            cls._options = OutReportOptions(name=name_safe)
             self.visit(cls)
             self.api.visit(cls)
             return cls
