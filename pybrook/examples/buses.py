@@ -18,7 +18,7 @@ class LocationReport(InReport):
     speed: float
 
 
-@brook.artificial_field('speed')
+@brook.artificial_field('course_id')
 def calc_course_id(
         *,
         vehicle_id: int = dependency(LocationReport.vehicle_id),
