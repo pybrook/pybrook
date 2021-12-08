@@ -62,7 +62,6 @@ class DependencyResolver(StreamConsumer):
         dep_key = self.dependency_map_key(message_id)
         redis_conn.hset(dep_key, dependency_name, field_value)
         pipeline.watch(dep_key)
-        print(redis_conn.hgetall(dep_key))
         if redis_conn.hlen(dep_key) == self._num_dependencies:
             pipeline.multi()
             pipeline.delete(dep_key)
