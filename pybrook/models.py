@@ -284,6 +284,9 @@ class ArtificialField(SourceField, ConsumerGenerator):
         model.add_consumer(dependency_resolver)
         field_generator = FieldGenerator(
             redis_url=model.redis_url,
+            # TODO: support async generators
+            # and possibly rename generator to calculate -
+            # generators are something else in Python
             generator_sync=self.calculate,
             dependency_stream=dependency_resolver.output_stream_name,
             field_name=self.field_name,
@@ -365,7 +368,7 @@ class PyBrook:
                          name: str = None
                          ) -> Callable[[Callable], ArtificialField]:
         def wrapper(fun: Callable) -> ArtificialField:
-            field = ArtificialField(fun)
+            field = ArtificialField(fun, name=name)
             self.artificial_fields[name or fun.__name__] = field
             self.visit(field)
             return field
