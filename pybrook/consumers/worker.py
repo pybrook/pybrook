@@ -74,4 +74,3 @@ class WorkerManager:
             processes.extend(Worker(c).run_sync(processes_num=8))
         for p in processes:
             p.join()
-

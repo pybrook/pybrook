@@ -7,9 +7,9 @@ class HelloWorldUser(HttpUser):
         self.client.post("/location-report", json={
             "vehicle_id": 0,
             "time": "2021-12-07T21:57:22.592Z",
-            "latitude": 0,
-            "longitude": 0,
+            "latitude": 0.2,
+            "longitude": 0.1,
             "temperature": 0,
             "doors_open": True,
-            "speed": 0
+            "speed": 10
         })

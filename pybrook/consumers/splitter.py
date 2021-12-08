@@ -15,7 +15,7 @@ class Splitter(StreamConsumer):
                  input_streams: Iterable[str],
                  object_id_field: str,
                  namespace: str,
-                 read_chunk_length: int = 1):
+                 read_chunk_length: int = 100):
         self.namespace: str = namespace
         self.object_id_field: str = object_id_field
         super().__init__(redis_url=redis_url,

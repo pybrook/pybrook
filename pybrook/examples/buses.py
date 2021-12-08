@@ -1,8 +1,10 @@
+import random
 from datetime import datetime
 
 from pybrook.models import InReport, OutReport, PyBrook, ReportField, dependency
 
 brook = PyBrook('redis://localhost')
+app = brook.app
 
 
 @brook.input('location-report', id_field='vehicle_id')
@@ -23,14 +25,14 @@ def calc_course_id(
         latitude: float = dependency(LocationReport.latitude),
         longitude: float = dependency(LocationReport.longitude),
 ) -> float:
-    ...
+    print(vehicle_id, latitude, longitude)
+    return random.randint(0, 10)
 
 
 @brook.output('course-report')
 class CourseReport(OutReport):
-    # course_id = ReportField(calc_course_id)
-    # stop_id = ReportField(calc_course_id)
-    time: datetime = ReportField(LocationReport.time)
+    course_id = ReportField(calc_course_id)
+    time = ReportField(LocationReport.time)
     latitude = ReportField(LocationReport.latitude)
     longitude = ReportField(LocationReport.longitude)
     temperature = ReportField(LocationReport.temperature)

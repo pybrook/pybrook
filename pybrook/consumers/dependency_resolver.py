@@ -1,9 +1,7 @@
-import os
-from typing import Dict, List
+from typing import Dict
 
 import aioredis
 import redis
-from loguru import logger
 
 from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
 from pybrook.consumers.base import StreamConsumer
@@ -16,7 +14,7 @@ class DependencyResolver(StreamConsumer):
                  resolver_name: str,
                  output_stream_name: str = None,
                  dependencies: Dict[str, str],
-                 read_chunk_length: int = 10):
+                 read_chunk_length: int = 100):
         """
 
         Args:
@@ -63,10 +61,8 @@ class DependencyResolver(StreamConsumer):
         message_id = message[MSG_ID_FIELD]
         dep_key = self.dependency_map_key(message_id)
         redis_conn.hset(dep_key, dependency_name, field_value)
-        logger.debug(
-            f'{self._resolver_name} ({os.getpid()}): HSET {dep_key} {dependency_name} {field_value}'
-        )
         pipeline.watch(dep_key)
+        print(redis_conn.hgetall(dep_key))
         if redis_conn.hlen(dep_key) == self._num_dependencies:
             pipeline.multi()
             pipeline.delete(dep_key)

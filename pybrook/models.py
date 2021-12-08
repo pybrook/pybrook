@@ -18,15 +18,17 @@ from typing import (
 import aioredis
 import fastapi
 import pydantic
-from pybrook.consumers.dependency_resolver import DependencyResolver
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
-from pybrook.consumers.worker import WorkerManager
 from pybrook.config import FIELD_PREFIX
 from pybrook.consumers import Splitter
 from pybrook.consumers.base import StreamConsumer
+from pybrook.consumers.dependency_resolver import DependencyResolver
+from pybrook.consumers.field_generator import FieldGenerator
+from pybrook.consumers.worker import WorkerManager
+from pybrook.utils import redisable_encoder
 
 
 class ConsumerGenerator:
@@ -44,6 +46,12 @@ class RouteGenerator:
 class Dependency:
     def __init__(self, src_field: 'SourceField'):
         self.src_field = src_field
+
+    def cast(self, value: str):
+        return self.src_field.value_type(value)
+
+    def __repr__(self):
+        return f'<Dependency src_field={self.src_field}>'
 
 
 def dependency(src_field: Union['SourceField', Any]) -> Any:
@@ -228,19 +236,6 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
         model.add_consumer(dependency_resolver)
 
 
-def redisable_encoder(model: BaseModel):
-    encoded_dict = jsonable_encoder(model)
-    for k, v in encoded_dict.items():
-        if type(v) in (str, bytes, int, float):
-            continue
-        if type(v) is bool:
-            encoded_dict[k] = int(v)
-        else:
-            # TODO: Handle this when decoding
-            encoded_dict[k] = json.dumps(v)
-    return encoded_dict
-
-
 class ReportField:
     def __init__(self, source_field: Union[SourceField, Any]):
         if not isinstance(source_field, SourceField):
@@ -262,10 +257,12 @@ class ArtificialField(SourceField, ConsumerGenerator):
         super().__init__(field_name=(name or calculate.__name__),
                          value_type=annotations.pop('return'))
         self.args: inspect.Signature = inspect.signature(calculate)
-        self.dependencies = [
-            val.default for val in self.args.parameters.values()
-        ]
-        if not all(isinstance(d, Dependency) for d in self.dependencies):
+        self.dependencies: Dict[str, Dependency] = {
+            arg_name: arg.default
+            for arg_name, arg in self.args.parameters.items()
+        }
+        if not all(
+                isinstance(d, Dependency) for d in self.dependencies.values()):
             raise RuntimeError(
                 f'Artificial field "{self.field_name}" has default values'
                 f' which do not subclass Dependency.')
@@ -274,9 +271,28 @@ class ArtificialField(SourceField, ConsumerGenerator):
     def __call__(self, *args, **kwargs):
         return self.calculate(*args, **kwargs)
 
-    @classmethod
-    def gen_consumers(cls, model: 'PyBrook'):
-        pass
+    def gen_consumers(self, model: 'PyBrook'):
+        dependency_resolver = DependencyResolver(
+            redis_url=model.redis_url,
+            output_stream_name=
+            f'{FIELD_PREFIX}{self.field_name}{FIELD_PREFIX}deps',
+            dependencies={
+                dep.src_field.stream_name: dep_name
+                for dep_name, dep in self.dependencies.items()
+            },
+            resolver_name=f'{self.field_name}')
+        model.add_consumer(dependency_resolver)
+        field_generator = FieldGenerator(
+            redis_url=model.redis_url,
+            generator_sync=self.calculate,
+            dependency_stream=dependency_resolver.output_stream_name,
+            field_name=self.field_name,
+            dependencies=[
+                FieldGenerator.Dependency(name=dep_name,
+                                          value_type=dep.src_field.value_type)
+                for dep_name, dep in self.dependencies.items()
+            ])
+        model.add_consumer(field_generator)
 
 
 TI = TypeVar('TI', bound=Type[InReport])
@@ -360,5 +376,5 @@ class PyBrook:
         generator.gen_consumers(self)
 
     def add_consumer(self, consumer: StreamConsumer):
+        print(consumer)
         self.consumers.append(consumer)
-
