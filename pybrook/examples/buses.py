@@ -25,13 +25,13 @@ def calc_course_id(
         latitude: float = dependency(LocationReport.latitude),
         longitude: float = dependency(LocationReport.longitude),
 ) -> float:
-    print(vehicle_id, latitude, longitude)
-    return random.randint(0, 10)
+    from time import sleep
+    sleep(1)
+    return vehicle_id * latitude * longitude
 
 
 @brook.output('course-report')
 class CourseReport(OutReport):
-    course_id = ReportField(calc_course_id)
     time = ReportField(LocationReport.time)
     latitude = ReportField(LocationReport.latitude)
     longitude = ReportField(LocationReport.longitude)

@@ -4,6 +4,7 @@ from typing import Any, Callable, Iterable, Tuple
 
 from loguru import logger
 
+from pybrook.consumers import Splitter
 from pybrook.consumers.base import StreamConsumer
 
 DEFAULT_PROCESSES_NUM = multiprocessing.cpu_count()
@@ -71,6 +72,6 @@ class WorkerManager:
         processes = []
         for c in self.consumers:
             logger.info(f'Spawning worker for {c}...')
-            processes.extend(Worker(c).run_sync(processes_num=8))
+            processes.extend(Worker(c).run_sync(processes_num=2 if isinstance(c, Splitter) else 4))
         for p in processes:
             p.join()

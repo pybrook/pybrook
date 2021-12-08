@@ -26,7 +26,7 @@ class FieldGenerator(StreamConsumer):
                  namespace: str = ARTIFICIAL_NAMESPACE,
                  dependency_stream: str,
                  dependencies: List[Dependency],
-                 read_chunk_length: int = 1):
+                 read_chunk_length: int = 100):
         if not (generator_sync or generator_async):
             raise RuntimeError(
                 'FieldGenerator does not have a purpose without a generator function!'

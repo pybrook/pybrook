@@ -1,15 +1,25 @@
+import random
+from datetime import datetime
+
 from locust import HttpUser, task
 
 
-class HelloWorldUser(HttpUser):
+class VehicleReportUser(HttpUser):
+
+    def on_start(self):
+        super().on_start()
+        self.request_id = 0
+
     @task
-    def hello_world(self):
+    def send_vehicle_report(self):
+        self.request_id += 1
+        randid = random.randint(1, 100)
         self.client.post("/location-report", json={
-            "vehicle_id": 0,
-            "time": "2021-12-07T21:57:22.592Z",
-            "latitude": 0.2,
-            "longitude": 0.1,
-            "temperature": 0,
-            "doors_open": True,
-            "speed": 10
+            "vehicle_id": randid,
+            "time": datetime.now().isoformat(),
+            "latitude": randid,
+            "longitude": randid,
+            "temperature": randid,
+            "doors_open": bool(randid % 2),
+            "speed": randid
         })
