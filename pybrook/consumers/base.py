@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 import signal
 from typing import Dict, Iterable, Mapping, Tuple
@@ -89,6 +90,20 @@ class StreamConsumer:
     def active(self, value: bool):
         self._active = value
 
+    async def _handle_message(self, stream: str, msg_id: str, payload: Dict[str, str], redis_conn: aioredis.Redis):
+        async with redis_conn.pipeline() as p:
+            result = await self.process_message_async(
+                stream, payload, redis_conn=redis_conn, pipeline=p)
+            for out_stream, out_msg in result.items():
+                p.xadd(out_stream, out_msg)
+            p.xack(stream, self._consumer_group_name, msg_id)
+            try:
+                await p.execute()
+            except aioredis.WatchError:
+                await redis_conn.xack(stream,
+                                      self._consumer_group_name,
+                                      msg_id)
+
     async def run_async(self):  # noqa: WPS217
         signal.signal(signal.SIGTERM, self.stop)
         redis_conn: aioredis.Redis = await aioredis.from_url(
@@ -99,18 +114,9 @@ class StreamConsumer:
             response = await redis_conn.xreadgroup(**xreadgroup_params)
             for stream, messages in response:
                 for msg_id, payload in messages:
-                    async with redis_conn.pipeline() as p:
-                        result = await self.process_message_async(
-                            stream, payload, redis_conn=redis_conn, pipeline=p)
-                        for out_stream, out_msg in result.items():
-                            p.xadd(out_stream, out_msg)
-                        p.xack(stream, self._consumer_group_name, msg_id)
-                        try:
-                            await p.execute()
-                        except aioredis.WatchError:
-                            await redis_conn.xack(stream,
-                                                  self._consumer_group_name,
-                                                  msg_id)
+                    # TODO: Add a configurable limit
+                    asyncio.create_task(self._handle_message(stream, msg_id, payload, redis_conn))
+
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
 

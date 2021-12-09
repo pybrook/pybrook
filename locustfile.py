@@ -3,6 +3,7 @@ from datetime import datetime
 
 from locust import FastHttpUser, task
 
+x = 0
 
 class VehicleReportUser(FastHttpUser):
 
@@ -12,6 +13,8 @@ class VehicleReportUser(FastHttpUser):
 
     @task
     def send_vehicle_report(self):
+        global x
+        x += 1
         self.request_id += 1
         randid = random.randint(1, 100)
         self.client.post("/location-report", json={
@@ -21,5 +24,5 @@ class VehicleReportUser(FastHttpUser):
             "longitude": randid,
             "temperature": randid,
             "doors_open": bool(randid % 2),
-            "speed": randid
+            "speed": x
         })

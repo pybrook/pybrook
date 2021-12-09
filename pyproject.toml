@@ -55,6 +55,7 @@ ptpython = "^3.0.7"
 pytest-asyncio = "^0.15.1"
 types-redis = "^3.5.15"
 locust = "^2.5.0"
+ipython = "^7.30.1"
 
 [tool.isort]
 line_length = 90
