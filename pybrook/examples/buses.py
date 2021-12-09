@@ -1,5 +1,4 @@
 import asyncio
-import random
 from datetime import datetime
 
 from pybrook.models import InReport, OutReport, PyBrook, ReportField, dependency
