@@ -22,6 +22,7 @@ class FieldGenerator(StreamConsumer):
                  generator_sync: Callable = None,
                  generator_async: Callable = None,
                  redis_url: str,
+                 use_async: bool,
                  field_name: str,
                  namespace: str = ARTIFICIAL_NAMESPACE,
                  dependency_stream: str,
@@ -45,6 +46,7 @@ class FieldGenerator(StreamConsumer):
             **pydantic_fields  # type: ignore
         )
         super().__init__(redis_url=redis_url,
+                         use_async=use_async,
                          consumer_group_name=field_name,
                          input_streams=[dependency_stream],
                          read_chunk_length=read_chunk_length)

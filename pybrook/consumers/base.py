@@ -15,12 +15,14 @@ class StreamConsumer:
                  redis_url: str,
                  consumer_group_name: str,
                  input_streams: Iterable[str],
+                 use_async: bool = False,
                  read_chunk_length: int = 1):
         self._consumer_group_name = consumer_group_name
         self._redis_url = redis_url
         self._active = False
         self._read_chunk_length = read_chunk_length
         self.input_streams = tuple(input_streams)
+        self.use_async = use_async
 
     def __repr__(self):
         return f'<{self.__class__.__name__} input_streams={self.input_streams}>'

@@ -1,3 +1,4 @@
+import asyncio
 import random
 from datetime import datetime
 
@@ -19,13 +20,14 @@ class LocationReport(InReport):
 
 
 @brook.artificial_field('course_id')
-def calc_course_id(
+async def calc_course_id(
         *,
         vehicle_id: int = dependency(LocationReport.vehicle_id),
         latitude: float = dependency(LocationReport.latitude),
         longitude: float = dependency(LocationReport.longitude),
 ) -> float:
-    return vehicle_id * 5
+    await asyncio.sleep(1)
+    return vehicle_id * latitude * longitude
 
 
 @brook.output('course-report')

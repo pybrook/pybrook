@@ -256,6 +256,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
         super().__init__(field_name=(name or calculate.__name__),
                          value_type=annotations.pop('return'))
         self.args: inspect.Signature = inspect.signature(calculate)
+        self.is_coro: bool = inspect.iscoroutinefunction(calculate)
         self.dependencies: Dict[str, Dependency] = {
             arg_name: arg.default
             for arg_name, arg in self.args.parameters.items()
@@ -281,19 +282,22 @@ class ArtificialField(SourceField, ConsumerGenerator):
             },
             resolver_name=f'{self.field_name}')
         model.add_consumer(dependency_resolver)
+        generators = {}
+        if self.is_coro:
+            generators['generator_async'] = self.calculate
+        else:
+            generators['generator_sync'] = self.calculate
         field_generator = FieldGenerator(
             redis_url=model.redis_url,
-            # TODO: support async generators
-            # and possibly rename generator to calculate -
-            # generators are something else in Python
-            generator_sync=self.calculate,
+            use_async=self.is_coro,
             dependency_stream=dependency_resolver.output_stream_name,
             field_name=self.field_name,
             dependencies=[
                 FieldGenerator.Dependency(name=dep_name,
                                           value_type=dep.src_field.value_type)
                 for dep_name, dep in self.dependencies.items()
-            ])
+            ],
+            **generators)
         model.add_consumer(field_generator)
 
 
