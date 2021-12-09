@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Dict
 
 import aioredis
@@ -32,7 +33,7 @@ class DependencyResolver(StreamConsumer):
         if not output_stream_name:
             output_stream_name = f'{FIELD_PREFIX}{self._resolver_name}{FIELD_PREFIX}deps'
         self.output_stream_name: str = output_stream_name
-        input_streams = list(dependencies.keys())
+        input_streams = list(set(dependencies.values()))
         super().__init__(redis_url=redis_url,
                          consumer_group_name=resolver_name,
                          input_streams=input_streams,
@@ -43,7 +44,7 @@ class DependencyResolver(StreamConsumer):
                f' input_streams={self.input_streams}, dependencies={self._dependencies}>'
 
     def dependency_map_key(self, message_id: str):
-        return f'{self.output_stream_name}{FIELD_PREFIX}{message_id}'
+        return f'{FIELD_PREFIX}depmap{self.output_stream_name}{FIELD_PREFIX}{message_id}'
 
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
@@ -55,20 +56,23 @@ class DependencyResolver(StreamConsumer):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        field_name = stream_name.split('@')[-1]
-        dependency_name = self._dependencies[stream_name]
-        field_value = message[field_name]
-        message_id = message[MSG_ID_FIELD]
+        message_id = message.pop(MSG_ID_FIELD)
         dep_key = self.dependency_map_key(message_id)
-        redis_conn.hset(dep_key, dependency_name, field_value)
-        pipeline.watch(dep_key)
-        if redis_conn.hlen(dep_key) == self._num_dependencies:
+        incr_key = dep_key + f'{FIELD_PREFIX}incr'
+        message = {k: message[k] for k in self._dependencies if k in message}
+        with redis_conn.pipeline() as p:
+            p.multi()
+            p.hset(dep_key, mapping=message)
+            p.incrby(incr_key, len(message))
+            _, incr_num = p.execute()
+        if incr_num == self._num_dependencies:
+            dependencies = redis_conn.hgetall(dep_key)
             pipeline.multi()
-            pipeline.delete(dep_key)
+            pipeline.delete(dep_key, incr_key)
             return {
                 self.output_stream_name: {
                     MSG_ID_FIELD: message_id,
-                    **redis_conn.hgetall(dep_key)
+                    **dependencies
                 }
             }
         return {}

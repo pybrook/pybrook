@@ -35,11 +35,10 @@ class Splitter(StreamConsumer):
                   obj_msg_id: str):
         message_id = f'{obj_id}:{obj_msg_id}'
         return {
-            f'{FIELD_PREFIX}{self.namespace}{FIELD_PREFIX}{k}': {
+            f'{FIELD_PREFIX}{self.namespace}{FIELD_PREFIX}split': {
                 MSG_ID_FIELD: message_id,
-                k: v
+                **message
             }
-            for k, v in message.items()
         }
 
     def get_obj_msg_id_key(self, obj_id: str):

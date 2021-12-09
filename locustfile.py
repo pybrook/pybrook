@@ -1,10 +1,10 @@
 import random
 from datetime import datetime
 
-from locust import HttpUser, task
+from locust import FastHttpUser, task
 
 
-class VehicleReportUser(HttpUser):
+class VehicleReportUser(FastHttpUser):
 
     def on_start(self):
         super().on_start()

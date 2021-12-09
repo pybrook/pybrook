@@ -89,8 +89,7 @@ class SourceField:
     @lru_cache
     def stream_name(self) -> str:
         if self.source_obj:
-            return f'{FIELD_PREFIX}{self.source_obj._options.name}' \
-                               f'{FIELD_PREFIX}{self.field_name}'
+            return f'{FIELD_PREFIX}{self.source_obj._options.name}{FIELD_PREFIX}split'
         else:
             return f'{FIELD_PREFIX}artificial{FIELD_PREFIX}{self.field_name}'
 
@@ -229,7 +228,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
             redis_url=model.redis_url,
             output_stream_name=cls._options.stream_name,
             dependencies={
-                field.source_field.stream_name: dependency_name
+                dependency_name: field.source_field.stream_name
                 for dependency_name, field in cls.report_fields.items()
             },
             resolver_name=f'{cls._options.name}')
@@ -277,7 +276,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
             output_stream_name=
             f'{FIELD_PREFIX}{self.field_name}{FIELD_PREFIX}deps',
             dependencies={
-                dep.src_field.stream_name: dep_name
+                dep_name: dep.src_field.stream_name
                 for dep_name, dep in self.dependencies.items()
             },
             resolver_name=f'{self.field_name}')

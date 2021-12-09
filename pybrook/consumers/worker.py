@@ -72,6 +72,6 @@ class WorkerManager:
         processes = []
         for c in self.consumers:
             logger.info(f'Spawning worker for {c}...')
-            processes.extend(Worker(c).run_sync(processes_num=2 if isinstance(c, Splitter) else 4))
+            processes.extend(Worker(c).run_sync(processes_num=4 if isinstance(c, Splitter) else 8))
         for p in processes:
             p.join()
