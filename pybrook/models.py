@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from pybrook.config import FIELD_PREFIX
 from pybrook.consumers import Splitter
-from pybrook.consumers.base import StreamConsumer
+from pybrook.consumers.base import BaseStreamConsumer
 from pybrook.consumers.dependency_resolver import DependencyResolver
 from pybrook.consumers.field_generator import FieldGenerator
 from pybrook.consumers.worker import WorkerManager
@@ -289,7 +289,6 @@ class ArtificialField(SourceField, ConsumerGenerator):
             generators['generator_sync'] = self.calculate
         field_generator = FieldGenerator(
             redis_url=model.redis_url,
-            use_async=self.is_coro,
             dependency_stream=dependency_resolver.output_stream_name,
             field_name=self.field_name,
             dependencies=[
@@ -330,7 +329,7 @@ class PyBrook:
         self.inputs: Dict[str, Type[InReport]] = {}
         self.outputs: Dict[str, Type[OutReport]] = {}
         self.artificial_fields: Dict[str, ArtificialField] = {}
-        self.consumers: List[StreamConsumer] = []
+        self.consumers: List[BaseStreamConsumer] = []
         self.redis_url: str = redis_url
         self.api: PyBrookApi = PyBrookApi(self)
 
@@ -381,6 +380,6 @@ class PyBrook:
     def visit(self, generator: ConsumerGenerator):
         generator.gen_consumers(self)
 
-    def add_consumer(self, consumer: StreamConsumer):
+    def add_consumer(self, consumer: BaseStreamConsumer):
         print(consumer)
         self.consumers.append(consumer)

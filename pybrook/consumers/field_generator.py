@@ -7,11 +7,11 @@ import redis
 from pydantic import BaseModel
 
 from pybrook.config import ARTIFICIAL_NAMESPACE, FIELD_PREFIX, MSG_ID_FIELD
-from pybrook.consumers.base import StreamConsumer
+from pybrook.consumers.base import BaseStreamConsumer
 from pybrook.utils import redisable_encoder
 
 
-class FieldGenerator(StreamConsumer):
+class FieldGenerator(BaseStreamConsumer):
     @dataclasses.dataclass
     class Dependency:
         name: str

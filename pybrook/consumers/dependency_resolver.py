@@ -5,10 +5,10 @@ import aioredis
 import redis
 
 from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
-from pybrook.consumers.base import StreamConsumer
+from pybrook.consumers.base import SyncStreamConsumer
 
 
-class DependencyResolver(StreamConsumer):
+class DependencyResolver(SyncStreamConsumer):
     def __init__(self,
                  *,
                  redis_url: str,
@@ -45,12 +45,6 @@ class DependencyResolver(StreamConsumer):
 
     def dependency_map_key(self, message_id: str):
         return f'{FIELD_PREFIX}depmap{self.output_stream_name}{FIELD_PREFIX}{message_id}'
-
-    async def process_message_async(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        raise NotImplementedError
 
     def process_message_sync(
             self, stream_name: str, message: Dict[str, str], *,

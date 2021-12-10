@@ -1,17 +1,17 @@
 import asyncio
 import multiprocessing
-from typing import Any, Callable, Iterable, Tuple
+from typing import Any, Callable, Iterable, Tuple, Union
 
 from loguru import logger
 
 from pybrook.consumers import Splitter
-from pybrook.consumers.base import StreamConsumer
+from pybrook.consumers.base import BaseStreamConsumer, AsyncStreamConsumer, SyncStreamConsumer
 
 DEFAULT_PROCESSES_NUM = multiprocessing.cpu_count()
 
 
 class Worker:
-    def __init__(self, consumer: StreamConsumer):
+    def __init__(self, consumer: Union[SyncStreamConsumer, AsyncStreamConsumer]):
         self._consumer = consumer
 
     def run_sync(self, *, processes_num: int = DEFAULT_PROCESSES_NUM):
@@ -52,7 +52,7 @@ class Worker:
             args: Tuple[Any, ...] = (),
     ) -> Iterable[multiprocessing.Process]:
         processes = []
-        self._consumer.create_groups_sync()
+        self._consumer.register_consumer()
 
         for _ in range(processes_num):
             proc = multiprocessing.Process(target=target, args=args)
@@ -65,7 +65,7 @@ class Worker:
 
 
 class WorkerManager:
-    def __init__(self, consumers: Iterable[StreamConsumer]):
+    def __init__(self, consumers: Iterable[BaseStreamConsumer]):
         self.consumers = consumers
 
     def run(self):
@@ -75,7 +75,7 @@ class WorkerManager:
             w = Worker(c)
             if not c.use_async:
                 procs = w.run_sync(
-                    processes_num=4 if isinstance(c, Splitter) else 8)
+                    processes_num=8 if isinstance(c, Splitter) else 8)
             else:
                 procs = w.run_async(processes_num=8, coroutines_num=8)
             processes.extend(procs)

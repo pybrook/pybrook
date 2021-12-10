@@ -4,10 +4,10 @@ import aioredis
 import redis
 
 from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
-from pybrook.consumers.base import StreamConsumer
+from pybrook.consumers.base import AsyncStreamConsumer, SyncStreamConsumer
 
 
-class Splitter(StreamConsumer):
+class Splitter(AsyncStreamConsumer, SyncStreamConsumer):
     def __init__(self,
                  *,
                  redis_url: str,

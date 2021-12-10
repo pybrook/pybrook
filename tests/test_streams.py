@@ -13,7 +13,7 @@ from loguru import logger
 
 from pybrook.config import MSG_ID_FIELD
 from pybrook.consumers import Splitter
-from pybrook.consumers.base import StreamConsumer
+from pybrook.consumers.base import BaseStreamConsumer, AsyncStreamConsumer, SyncStreamConsumer
 from pybrook.consumers.dependency_resolver import DependencyResolver
 from pybrook.consumers.worker import Worker
 
@@ -31,7 +31,7 @@ def limit_time(monkeypatch):
     from time import time
     t = time()
     monkeypatch.setattr(
-        StreamConsumer, 'active',
+        BaseStreamConsumer, 'active',
         property(fget=lambda s: time() < t + 1, fset=lambda s, v: None))
 
 
@@ -42,6 +42,7 @@ async def redis_async():
         TEST_REDIS_URI, decode_responses=True)
     await redis_async.flushdb()
     yield redis_async
+    await redis_async.flushdb()
     await redis_async.close()
     await redis_async.connection_pool.disconnect()
 
@@ -82,8 +83,8 @@ def test_input(redis_sync) -> List[Dict[str, str]]:
 def test_dependency(redis_sync) -> List[Dict[str, str]]:
     with redis_sync.pipeline() as p:
         for i in range(100):
-            p.xadd('@a', {'@_msg_id': f'Vehicle 1:{i}', 'a': str(i)})
-            p.xadd('@b', {'@_msg_id': f'Vehicle 1:{i}', 'b': str(i)})
+            p.xadd(':a', {':_msg_id': f'Vehicle 1:{i}', 'a': str(i)})
+            p.xadd(':b', {':_msg_id': f'Vehicle 1:{i}', 'b': str(i)})
         p.execute()
 
 
@@ -93,7 +94,7 @@ def test_worker(test_input, redis_sync, mode, limit_time,
     messages = multiprocessing.Manager().list()
     random.seed(16)
 
-    class TestConsumer(StreamConsumer):
+    class TestConsumer(SyncStreamConsumer, AsyncStreamConsumer):
         def process_message_sync(
                 self, stream_name: bytes, message: Dict[str, str], *,
                 redis_conn: aioredis.Redis,
@@ -138,22 +139,18 @@ async def test_splitter_async(redis_async: aioredis.Redis, test_input,
                         namespace='test',
                         redis_url=TEST_REDIS_URI,
                         input_streams=['test_input'])
-    await splitter.create_groups_async()
+    splitter.register_consumer()
     tasks = []
     for _ in range(8):
         task = asyncio.create_task(splitter.run_async())
         tasks.append(task)
 
     await asyncio.wait(tasks)
-    message = (await redis_async.xread(streams={'@test@a': '0-0'}, count=1))[0]
+    message = (await redis_async.xread(streams={':test:split': '0-0'}, count=1))[0]
 
-    assert (await redis_async.xlen('@test@a')) == len(test_input)
-    assert message[0] == '@test@a'
-    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
-
-    message = (await redis_async.xread(streams={'@test@b': '0-0'}, count=1))[0]
-    assert message[0] == '@test@b'
-    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
+    assert (await redis_async.xlen(':test:split')) == len(test_input)
+    assert message[0] == ':test:split'
+    assert message[1][0][1] == {':_msg_id': 'Vehicle 1:1', 'a': '0', 'b': '1', 'vehicle_id': 'Vehicle 1'}
 
 
 def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
@@ -163,7 +160,7 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
                         object_id_field='vehicle_id',
                         redis_url=TEST_REDIS_URI,
                         input_streams=['test_input'])
-    splitter.create_groups_sync()
+    splitter.register_consumer()
 
     ps = []
     for i in range(16):
@@ -173,25 +170,21 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
     for p in ps:
         p.join()
 
-    assert redis_sync.xlen('@test@a') == len(test_input)
-    message = redis_sync.xread(streams={'@test@a': '0-0'}, count=1)[0]
-    assert message[0] == '@test@a'
-    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'a': '0'}
-
-    message = redis_sync.xread(streams={'@test@b': '0-0'}, count=1)[0]
-    assert message[0] == '@test@b'
-    assert message[1][0][1] == {'@_msg_id': 'Vehicle 1:1', 'b': '1'}
+    assert redis_sync.xlen(':test:split') == len(test_input)
+    message = redis_sync.xread(streams={':test:split': '0-0'}, count=1)[0]
+    assert message[0] == ':test:split'
+    assert message[1][0][1] == {':_msg_id': 'Vehicle 1:1', 'a': '0', 'b': '1', 'vehicle_id': 'Vehicle 1'}
 
 
 def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
                                   limit_time, replace_process_with_thread):
     resolver = DependencyResolver(resolver_name='ab_resolver',
                                   dependencies={
-                                      '@a': 'a',
-                                      '@b': 'b'
+                                      'a': ':a',
+                                      'b': ':b'
                                   },
                                   redis_url=TEST_REDIS_URI)
-    resolver.create_groups_sync()
+    resolver.register_consumer()
     ps = []
     for i in range(16):
         proc = threading.Thread(target=resolver.run_sync)
@@ -217,8 +210,8 @@ def test_perf(test_input_perf, redis_sync):
                         input_streams=['test_input'])
     resolver = DependencyResolver(resolver_name='ab_resolver',
                                   dependencies={
-                                      '@test_perf@a': 'a',
-                                      '@test_perf@b': 'b'
+                                      'a': ':test_perf:split',
+                                      'b': ':test_perf:split'
                                   },
                                   read_chunk_length=10,
                                   redis_url=TEST_REDIS_URI)
@@ -233,10 +226,9 @@ def test_perf(test_input_perf, redis_sync):
     assert redis_sync.xlen(resolver.output_stream_name) != 0
     for m_id, m_payload in (redis_sync.xread(
         {resolver.output_stream_name: '0-0'}))[0][1]:
-        assert m_payload['@_msg_id'] not in msgids, 'Race condition check'
-        msgids.add(m_payload['@_msg_id'])
+        assert m_payload[':_msg_id'] not in msgids, 'Race condition check'
+        msgids.add(m_payload[':_msg_id'])
     logger.warning([
-        redis_sync.xlen('@test_perf@a'),
-        redis_sync.xlen('@test_perf@b'),
+        redis_sync.xlen(':test_perf:split'),
         redis_sync.xlen(resolver.output_stream_name)
     ])

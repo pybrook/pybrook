@@ -10,7 +10,7 @@ from loguru import logger
 CONSUMER_NAME_LENGTH = 64
 
 
-class StreamConsumer:
+class BaseStreamConsumer:
     def __init__(self,
                  *,
                  redis_url: str,
@@ -36,36 +36,7 @@ class StreamConsumer:
     def input_streams(self, streams: Tuple[str, ...]):
         self._input_streams = tuple(streams)
 
-    async def process_message_async(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        raise NotImplementedError(
-            f'Async version of process_message for {type(self).__name__} not implemented.'
-        )
-
-    def process_message_sync(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: redis.Redis,
-            pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        raise NotImplementedError(
-            f'Sync version of process_message for {type(self).__name__} not implemented.'
-        )
-
-    async def create_groups_async(self):
-        redis_conn: aioredis.Redis = await aioredis.from_url(
-            self._redis_url, encoding='utf-8', decode_responses=True)
-        for stream in self.input_streams:
-            try:
-                await redis_conn.xgroup_create(stream,
-                                               self._consumer_group_name,
-                                               id=0,
-                                               mkstream=True)
-            except aioredis.ResponseError as e:
-                if 'BUSYGROUP' not in str(e):
-                    raise e
-
-    def create_groups_sync(self):
+    def register_consumer(self):
         redis_conn = redis.from_url(self._redis_url,
                                     encoding='utf-8',
                                     decode_responses=True)
@@ -90,20 +61,6 @@ class StreamConsumer:
     def active(self, value: bool):
         self._active = value
 
-    async def _handle_message(self, stream: str, msg_id: str, payload: Dict[str, str], redis_conn: aioredis.Redis):
-        async with redis_conn.pipeline() as p:
-            result = await self.process_message_async(
-                stream, payload, redis_conn=redis_conn, pipeline=p)
-            for out_stream, out_msg in result.items():
-                p.xadd(out_stream, out_msg)
-            p.xack(stream, self._consumer_group_name, msg_id)
-            try:
-                await p.execute()
-            except aioredis.WatchError:
-                await redis_conn.xack(stream,
-                                      self._consumer_group_name,
-                                      msg_id)
-
     async def run_async(self):  # noqa: WPS217
         signal.signal(signal.SIGTERM, self.stop)
         redis_conn: aioredis.Redis = await aioredis.from_url(
@@ -119,6 +76,43 @@ class StreamConsumer:
 
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
+
+    @property
+    def _xreadgroup_params(self) -> Mapping:
+        consumer_name = secrets.token_urlsafe(CONSUMER_NAME_LENGTH)
+        return {
+            'streams': {s: '>'
+                        for s in self.input_streams},
+            'groupname': self._consumer_group_name,
+            'consumername': consumer_name,
+            'count': self._read_chunk_length,
+            'block': 100
+        }
+
+
+class SyncStreamConsumer(BaseStreamConsumer):
+
+    def process_message_sync(
+            self, stream_name: str, message: Dict[str, str], *,
+            redis_conn: redis.Redis,
+            pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+        raise NotImplementedError(
+            f'Sync version of process_message for {type(self).__name__} not implemented.'
+        )
+
+    async def _handle_message(self, stream: str, msg_id: str, payload: Dict[str, str], redis_conn: aioredis.Redis):
+        async with redis_conn.pipeline() as p:
+            result = await self.process_message_async(
+                stream, payload, redis_conn=redis_conn, pipeline=p)
+            for out_stream, out_msg in result.items():
+                p.xadd(out_stream, out_msg)
+            p.xack(stream, self._consumer_group_name, msg_id)
+            try:
+                await p.execute()
+            except aioredis.WatchError:
+                await redis_conn.xack(stream,
+                                      self._consumer_group_name,
+                                      msg_id)
 
     def run_sync(self):
         signal.signal(signal.SIGTERM, self.stop)
@@ -146,14 +140,13 @@ class StreamConsumer:
         redis_conn.close()
         redis_conn.connection_pool.disconnect()
 
-    @property
-    def _xreadgroup_params(self) -> Mapping:
-        consumer_name = secrets.token_urlsafe(CONSUMER_NAME_LENGTH)
-        return {
-            'streams': {s: '>'
-                        for s in self.input_streams},
-            'groupname': self._consumer_group_name,
-            'consumername': consumer_name,
-            'count': self._read_chunk_length,
-            'block': 100
-        }
+
+class AsyncStreamConsumer(BaseStreamConsumer):
+
+    async def process_message_async(
+            self, stream_name: str, message: Dict[str, str], *,
+            redis_conn: aioredis.Redis,
+            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+        raise NotImplementedError(
+            f'Async version of process_message for {type(self).__name__} not implemented.'
+        )
