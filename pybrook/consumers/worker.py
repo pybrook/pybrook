@@ -1,8 +1,10 @@
 import asyncio
 import multiprocessing
-from typing import Any, Callable, Iterable, Tuple, Union
+from collections import defaultdict
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Tuple, Union
 
 from loguru import logger
+from redis import Redis
 
 from pybrook.consumers.base import (
     AsyncStreamConsumer,
@@ -31,7 +33,7 @@ class Worker:
 
     def _spawn_sync(self,
                     processes_num: int) -> Iterable[multiprocessing.Process]:
-        return self._spawn(target=self._consumer.run_sync,
+        return self._spawn(target=self._consumer.run_sync,  # type: ignore
                            processes_num=processes_num)
 
     def _async_wrapper(self, coroutines_num: int):
@@ -75,16 +77,36 @@ class WorkerManager:
 
     def run(self):
         processes = []
+        gears_consumers: Mapping[str,
+                                 List[GearsStreamConsumer]] = defaultdict(list)
         for c in self.consumers:
+            if isinstance(c, GearsStreamConsumer):
+                gears_consumers[c._redis_url].append(c)
+                continue
             logger.info(f'Spawning worker for {c}...')
             w = Worker(c)
-            procs = []
-            if isinstance(c, GearsStreamConsumer):
-                c.register_builder()
-            elif isinstance(c, SyncStreamConsumer):
+            if isinstance(c, SyncStreamConsumer):
                 procs = w.run_sync(processes_num=8)
             elif isinstance(c, AsyncStreamConsumer):
                 procs = w.run_async(processes_num=8, coroutines_num=8)
+            else:
+                raise NotImplementedError(c)
             processes.extend(procs)
+        for redis_url, consumers in dict(gears_consumers).items():
+            redis = Redis.from_url(redis_url, decode_responses=True, encoding='utf-8')
+            with redis.pipeline() as p:
+                p.watch('RG.REGISTERLOCK')
+                if p.exists('RG.REGISTERLOCK'):
+                    raise RuntimeError('Try again later, RG registration is locked, possibly by another instance')
+                p.multi()
+                p.set('RG.REGISTERLOCK', '1')
+                p.expire('RG.REGISTERLOCK', '5')
+                p.execute(raise_on_error=True)
+            ids = [r[1] for r in redis.execute_command('RG.DUMPREGISTRATIONS')]
+            for i in ids:
+                redis.execute_command('RG.UNREGISTER', i)
+            for c in consumers:
+                c.register_builder(redis)
+            redis.delete('RG.REGISTERLOCK')
         for p in processes:
             p.join()

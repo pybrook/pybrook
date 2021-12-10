@@ -56,7 +56,7 @@ class DependencyResolver(SyncStreamConsumer):
         message = {k: message[k] for k in self._dependencies if k in message}
         with redis_conn.pipeline() as p:
             p.multi()
-            p.hset(dep_key, mapping=message)
+            p.hset(dep_key, mapping=message)  # type: ignore
             p.incrby(incr_key, len(message))
             _, incr_num = p.execute()
         if incr_num == self._num_dependencies:

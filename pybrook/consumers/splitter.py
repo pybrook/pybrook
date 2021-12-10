@@ -7,6 +7,7 @@ from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
 from pybrook.consumers.base import (
     AsyncStreamConsumer,
     BaseStreamConsumer,
+    GearsStreamConsumer,
     SyncStreamConsumer,
 )
 
@@ -59,3 +60,28 @@ class SyncSplitter(SyncStreamConsumer, BaseSplitter):
         obj_id = message[self.object_id_field]
         obj_msg_id = str(redis_conn.incr(self.get_obj_msg_id_key(obj_id)))
         return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
+
+# {'key': 's5', 'id': '1639134303022-0', 'value': {'A': 'B'}}
+
+
+
+
+
+class GearsSplitter(GearsStreamConsumer, BaseSplitter):
+    def register_builder(self, pipeline: redis.client.Pipeline):
+        cmd = f'''
+from itertools import chain
+
+def process_message(msg):
+    message = msg["value"]
+    obj_id = message["{self.object_id_field}"]
+    msg_id_key = f'{self.get_obj_msg_id_key("{obj_id}")}'
+    obj_msg_id = execute("INCR", msg_id_key)
+    out_stream = '{FIELD_PREFIX}{self.namespace}{FIELD_PREFIX}split'
+    message["{MSG_ID_FIELD}"] = f'{{obj_id}}:{{obj_msg_id}}'
+    execute("XADD", out_stream, '*', *chain(*message.items()))
+
+for s in {self.input_streams}:
+    GearsBuilder("StreamReader").foreach(process_message).register(s, trimStream=False)'''
+        print(cmd)
+        pipeline.execute_command('RG.PYEXECUTE', cmd)

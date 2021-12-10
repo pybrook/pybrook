@@ -97,7 +97,7 @@ class BaseStreamConsumer:
             'groupname': self._consumer_group_name,
             'consumername': consumer_name,
             'count': self._read_chunk_length,
-            'block': 100
+            'block': 1000
         }
 
 
@@ -109,23 +109,6 @@ class SyncStreamConsumer(BaseStreamConsumer):
         raise NotImplementedError(
             f'Sync version of process_message for {type(self).__name__} not implemented.'
         )
-
-    async def _handle_message(self, stream: str, msg_id: str,
-                              payload: Dict[str,
-                                            str], redis_conn: aioredis.Redis):
-        async with redis_conn.pipeline() as p:
-            result = await self.process_message_async(stream,
-                                                      payload,
-                                                      redis_conn=redis_conn,
-                                                      pipeline=p)
-            for out_stream, out_msg in result.items():
-                p.xadd(out_stream, out_msg)
-            p.xack(stream, self._consumer_group_name, msg_id)
-            try:
-                await p.execute()
-            except aioredis.WatchError:
-                await redis_conn.xack(stream, self._consumer_group_name,
-                                      msg_id)
 
     @property
     def supported_impl(self):
@@ -159,6 +142,23 @@ class SyncStreamConsumer(BaseStreamConsumer):
 
 
 class AsyncStreamConsumer(BaseStreamConsumer):
+    async def _handle_message(self, stream: str, msg_id: str,
+                              payload: Dict[str,
+                                            str], redis_conn: aioredis.Redis):
+        async with redis_conn.pipeline() as p:
+            result = await self.process_message_async(stream,
+                                                      payload,
+                                                      redis_conn=redis_conn,
+                                                      pipeline=p)
+            for out_stream, out_msg in result.items():
+                p.xadd(out_stream, out_msg)  # type: ignore
+            p.xack(stream, self._consumer_group_name, msg_id)
+            try:
+                await p.execute()
+            except aioredis.WatchError:
+                await redis_conn.xack(stream, self._consumer_group_name,
+                                      msg_id)
+
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: aioredis.Redis,
@@ -169,6 +169,5 @@ class AsyncStreamConsumer(BaseStreamConsumer):
 
 
 class GearsStreamConsumer(BaseStreamConsumer):
-
-    def register_builder(self):
+    def register_builder(self, pipeline: redis.client.Pipeline):
         raise NotImplementedError

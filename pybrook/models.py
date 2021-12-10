@@ -1,7 +1,7 @@
 import dataclasses
 import inspect
 import json
-from functools import lru_cache
+from functools import lru_cache, cached_property
 from typing import (
     Any,
     AsyncIterator,
@@ -29,7 +29,7 @@ from pybrook.consumers.field_generator import (
     BaseFieldGenerator,
     SyncFieldGenerator,
 )
-from pybrook.consumers.splitter import SyncSplitter
+from pybrook.consumers.splitter import GearsSplitter, SyncSplitter
 from pybrook.consumers.worker import WorkerManager
 from pybrook.utils import redisable_encoder
 
@@ -154,17 +154,17 @@ class InReport(ConsumerGenerator,
                metaclass=InReportMeta):
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
-        splitter = SyncSplitter(redis_url=model.redis_url,
-                                object_id_field=cls._options.id_field,
-                                consumer_group_name=cls._options.name,
-                                namespace=cls._options.name,
-                                input_streams=[cls._options.stream_name])
+        splitter = GearsSplitter(redis_url=model.redis_url,
+                                 object_id_field=cls._options.id_field,
+                                 consumer_group_name=cls._options.name,
+                                 namespace=cls._options.name,
+                                 input_streams=[cls._options.stream_name])
         model.add_consumer(splitter)
 
     @classmethod
     def gen_routes(cls, app: FastAPI, redis_dep: aioredis.Redis):
         @app.post(f'/{cls._options.name}', name=f'Add {cls._options.name}')
-        async def add_report(report: cls = fastapi.Body(...),
+        async def add_report(report: cls = fastapi.Body(...),  # type: ignore
                              redis: aioredis.Redis = redis_dep
                              ):  # type: ignore
             await redis.xadd(cls._options.stream_name,
@@ -274,7 +274,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
     def __call__(self, *args, **kwargs):
         return self.calculate(*args, **kwargs)
 
-    def gen_consumers(self, model: 'PyBrook'):
+    def gen_consumers(self, model: 'PyBrook'):  # type: ignore
         dependency_resolver = DependencyResolver(
             redis_url=model.redis_url,
             output_stream_name=

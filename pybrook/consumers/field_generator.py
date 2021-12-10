@@ -23,7 +23,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
 
     def __init__(self,
                  *,
-                 generator: Callable = None,
+                 generator: Callable,
                  redis_url: str,
                  field_name: str,
                  namespace: str = ARTIFICIAL_NAMESPACE,
