@@ -12,9 +12,14 @@ import redis
 from loguru import logger
 
 from pybrook.config import MSG_ID_FIELD
-from pybrook.consumers import Splitter
-from pybrook.consumers.base import BaseStreamConsumer, AsyncStreamConsumer, SyncStreamConsumer
+from pybrook.consumers.base import (
+    AsyncStreamConsumer,
+    BaseStreamConsumer,
+    ConsumerImpl,
+    SyncStreamConsumer,
+)
 from pybrook.consumers.dependency_resolver import DependencyResolver
+from pybrook.consumers.splitter import AsyncSplitter, SyncSplitter
 from pybrook.consumers.worker import Worker
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
@@ -134,11 +139,11 @@ def test_worker(test_input, redis_sync, mode, limit_time,
 @pytest.mark.asyncio
 async def test_splitter_async(redis_async: aioredis.Redis, test_input,
                               replace_process_with_thread, limit_time):
-    splitter = Splitter(consumer_group_name='splitter',
-                        object_id_field='vehicle_id',
-                        namespace='test',
-                        redis_url=TEST_REDIS_URI,
-                        input_streams=['test_input'])
+    splitter = AsyncSplitter(consumer_group_name='splitter',
+                             object_id_field='vehicle_id',
+                             namespace='test',
+                             redis_url=TEST_REDIS_URI,
+                             input_streams=['test_input'])
     splitter.register_consumer()
     tasks = []
     for _ in range(8):
@@ -146,20 +151,26 @@ async def test_splitter_async(redis_async: aioredis.Redis, test_input,
         tasks.append(task)
 
     await asyncio.wait(tasks)
-    message = (await redis_async.xread(streams={':test:split': '0-0'}, count=1))[0]
+    message = (await redis_async.xread(streams={':test:split': '0-0'},
+                                       count=1))[0]
 
     assert (await redis_async.xlen(':test:split')) == len(test_input)
     assert message[0] == ':test:split'
-    assert message[1][0][1] == {':_msg_id': 'Vehicle 1:1', 'a': '0', 'b': '1', 'vehicle_id': 'Vehicle 1'}
+    assert message[1][0][1] == {
+        ':_msg_id': 'Vehicle 1:1',
+        'a': '0',
+        'b': '1',
+        'vehicle_id': 'Vehicle 1'
+    }
 
 
 def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
                        replace_process_with_thread):
-    splitter = Splitter(consumer_group_name='splitter',
-                        namespace='test',
-                        object_id_field='vehicle_id',
-                        redis_url=TEST_REDIS_URI,
-                        input_streams=['test_input'])
+    splitter = SyncSplitter(consumer_group_name='splitter',
+                            namespace='test',
+                            object_id_field='vehicle_id',
+                            redis_url=TEST_REDIS_URI,
+                            input_streams=['test_input'])
     splitter.register_consumer()
 
     ps = []
@@ -173,7 +184,12 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
     assert redis_sync.xlen(':test:split') == len(test_input)
     message = redis_sync.xread(streams={':test:split': '0-0'}, count=1)[0]
     assert message[0] == ':test:split'
-    assert message[1][0][1] == {':_msg_id': 'Vehicle 1:1', 'a': '0', 'b': '1', 'vehicle_id': 'Vehicle 1'}
+    assert message[1][0][1] == {
+        ':_msg_id': 'Vehicle 1:1',
+        'a': '0',
+        'b': '1',
+        'vehicle_id': 'Vehicle 1'
+    }
 
 
 def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
@@ -202,12 +218,12 @@ def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
 
 
 def test_perf(test_input_perf, redis_sync):
-    splitter = Splitter(consumer_group_name='splitter',
-                        redis_url=TEST_REDIS_URI,
-                        object_id_field='vehicle_id',
-                        namespace='test_perf',
-                        read_chunk_length=10,
-                        input_streams=['test_input'])
+    splitter = SyncSplitter(consumer_group_name='splitter',
+                            redis_url=TEST_REDIS_URI,
+                            object_id_field='vehicle_id',
+                            namespace='test_perf',
+                            read_chunk_length=10,
+                            input_streams=['test_input'])
     resolver = DependencyResolver(resolver_name='ab_resolver',
                                   dependencies={
                                       'a': ':test_perf:split',

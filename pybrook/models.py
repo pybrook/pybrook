@@ -19,14 +19,17 @@ import aioredis
 import fastapi
 import pydantic
 from fastapi import FastAPI
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 from pybrook.config import FIELD_PREFIX
-from pybrook.consumers import Splitter
 from pybrook.consumers.base import BaseStreamConsumer
 from pybrook.consumers.dependency_resolver import DependencyResolver
-from pybrook.consumers.field_generator import FieldGenerator
+from pybrook.consumers.field_generator import (
+    AsyncFieldGenerator,
+    BaseFieldGenerator,
+    SyncFieldGenerator,
+)
+from pybrook.consumers.splitter import SyncSplitter
 from pybrook.consumers.worker import WorkerManager
 from pybrook.utils import redisable_encoder
 
@@ -151,11 +154,11 @@ class InReport(ConsumerGenerator,
                metaclass=InReportMeta):
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
-        splitter = Splitter(redis_url=model.redis_url,
-                            object_id_field=cls._options.id_field,
-                            consumer_group_name=cls._options.name,
-                            namespace=cls._options.name,
-                            input_streams=[cls._options.stream_name])
+        splitter = SyncSplitter(redis_url=model.redis_url,
+                                object_id_field=cls._options.id_field,
+                                consumer_group_name=cls._options.name,
+                                namespace=cls._options.name,
+                                input_streams=[cls._options.stream_name])
         model.add_consumer(splitter)
 
     @classmethod
@@ -282,21 +285,22 @@ class ArtificialField(SourceField, ConsumerGenerator):
             },
             resolver_name=f'{self.field_name}')
         model.add_consumer(dependency_resolver)
-        generators = {}
-        if self.is_coro:
-            generators['generator_async'] = self.calculate
-        else:
-            generators['generator_sync'] = self.calculate
-        field_generator = FieldGenerator(
+
+        field_generator_deps = [
+            BaseFieldGenerator.Dependency(name=dep_name,
+                                          value_type=dep.src_field.value_type)
+            for dep_name, dep in self.dependencies.items()
+        ]
+
+        generator_class = AsyncFieldGenerator if self.is_coro else SyncFieldGenerator
+
+        field_generator = generator_class(
             redis_url=model.redis_url,
             dependency_stream=dependency_resolver.output_stream_name,
             field_name=self.field_name,
-            dependencies=[
-                FieldGenerator.Dependency(name=dep_name,
-                                          value_type=dep.src_field.value_type)
-                for dep_name, dep in self.dependencies.items()
-            ],
-            **generators)
+            generator=self.calculate,
+            dependencies=field_generator_deps)
+
         model.add_consumer(field_generator)
 
 

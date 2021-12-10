@@ -1,6 +1,7 @@
 import asyncio
 import secrets
 import signal
+from enum import Enum
 from typing import Dict, Iterable, Mapping, Tuple
 
 import aioredis
@@ -10,20 +11,28 @@ from loguru import logger
 CONSUMER_NAME_LENGTH = 64
 
 
+class ConsumerImpl(Enum):
+    GEARS = 'GEARS'
+    ASYNC = 'ASYNC'
+    SYNC = 'SYNC'
+
+
 class BaseStreamConsumer:
     def __init__(self,
                  *,
                  redis_url: str,
                  consumer_group_name: str,
                  input_streams: Iterable[str],
-                 use_async: bool = False,
                  read_chunk_length: int = 1):
         self._consumer_group_name = consumer_group_name
         self._redis_url = redis_url
         self._active = False
         self._read_chunk_length = read_chunk_length
         self.input_streams = tuple(input_streams)
-        self.use_async = use_async
+
+    @property
+    def supported_impl(self):
+        return []
 
     def __repr__(self):
         return f'<{self.__class__.__name__} input_streams={self.input_streams}>'
@@ -72,7 +81,9 @@ class BaseStreamConsumer:
             for stream, messages in response:
                 for msg_id, payload in messages:
                     # TODO: Add a configurable limit
-                    asyncio.create_task(self._handle_message(stream, msg_id, payload, redis_conn))
+                    asyncio.create_task(
+                        self._handle_message(stream, msg_id, payload,
+                                             redis_conn))
 
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
@@ -91,7 +102,6 @@ class BaseStreamConsumer:
 
 
 class SyncStreamConsumer(BaseStreamConsumer):
-
     def process_message_sync(
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
@@ -100,19 +110,26 @@ class SyncStreamConsumer(BaseStreamConsumer):
             f'Sync version of process_message for {type(self).__name__} not implemented.'
         )
 
-    async def _handle_message(self, stream: str, msg_id: str, payload: Dict[str, str], redis_conn: aioredis.Redis):
+    async def _handle_message(self, stream: str, msg_id: str,
+                              payload: Dict[str,
+                                            str], redis_conn: aioredis.Redis):
         async with redis_conn.pipeline() as p:
-            result = await self.process_message_async(
-                stream, payload, redis_conn=redis_conn, pipeline=p)
+            result = await self.process_message_async(stream,
+                                                      payload,
+                                                      redis_conn=redis_conn,
+                                                      pipeline=p)
             for out_stream, out_msg in result.items():
                 p.xadd(out_stream, out_msg)
             p.xack(stream, self._consumer_group_name, msg_id)
             try:
                 await p.execute()
             except aioredis.WatchError:
-                await redis_conn.xack(stream,
-                                      self._consumer_group_name,
+                await redis_conn.xack(stream, self._consumer_group_name,
                                       msg_id)
+
+    @property
+    def supported_impl(self):
+        return super().supported_impl + [ConsumerImpl.SYNC]
 
     def run_sync(self):
         signal.signal(signal.SIGTERM, self.stop)
@@ -142,7 +159,6 @@ class SyncStreamConsumer(BaseStreamConsumer):
 
 
 class AsyncStreamConsumer(BaseStreamConsumer):
-
     async def process_message_async(
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: aioredis.Redis,
@@ -150,3 +166,9 @@ class AsyncStreamConsumer(BaseStreamConsumer):
         raise NotImplementedError(
             f'Async version of process_message for {type(self).__name__} not implemented.'
         )
+
+
+class GearsStreamConsumer(BaseStreamConsumer):
+
+    def register_builder(self):
+        raise NotImplementedError

@@ -4,10 +4,14 @@ import aioredis
 import redis
 
 from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
-from pybrook.consumers.base import AsyncStreamConsumer, SyncStreamConsumer
+from pybrook.consumers.base import (
+    AsyncStreamConsumer,
+    BaseStreamConsumer,
+    SyncStreamConsumer,
+)
 
 
-class Splitter(AsyncStreamConsumer, SyncStreamConsumer):
+class BaseSplitter(BaseStreamConsumer):
     def __init__(self,
                  *,
                  redis_url: str,
@@ -23,14 +27,6 @@ class Splitter(AsyncStreamConsumer, SyncStreamConsumer):
                          input_streams=input_streams,
                          read_chunk_length=read_chunk_length)
 
-    async def process_message_async(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        obj_id = message[self.object_id_field]
-        obj_msg_id = await redis_conn.incr(self.get_obj_msg_id_key(obj_id))
-        return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
-
     def split_msg(self, message: Dict[str, str], *, obj_id: str,
                   obj_msg_id: str):
         message_id = f'{obj_id}:{obj_msg_id}'
@@ -44,6 +40,18 @@ class Splitter(AsyncStreamConsumer, SyncStreamConsumer):
     def get_obj_msg_id_key(self, obj_id: str):
         return f'{FIELD_PREFIX}id{FIELD_PREFIX}{obj_id}'
 
+
+class AsyncSplitter(AsyncStreamConsumer, BaseSplitter):
+    async def process_message_async(
+            self, stream_name: str, message: Dict[str, str], *,
+            redis_conn: aioredis.Redis,
+            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+        obj_id = message[self.object_id_field]
+        obj_msg_id = await redis_conn.incr(self.get_obj_msg_id_key(obj_id))
+        return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
+
+
+class SyncSplitter(SyncStreamConsumer, BaseSplitter):
     def process_message_sync(
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
