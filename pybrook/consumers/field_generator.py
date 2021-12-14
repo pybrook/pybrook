@@ -4,7 +4,6 @@ from typing import Callable, Dict, List, Type
 import aioredis
 import pydantic
 import redis
-from pydantic import BaseModel
 
 from pybrook.config import ARTIFICIAL_NAMESPACE, FIELD_PREFIX, MSG_ID_FIELD
 from pybrook.consumers.base import (
@@ -38,7 +37,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
             dep.name: (dep.value_type, pydantic.Field())
             for dep in dependencies
         }
-        self.dep_model: Type[BaseModel] = pydantic.create_model(
+        self.dep_model: Type[pydantic.BaseModel] = pydantic.create_model(
             field_name + 'Model',
             **pydantic_fields  # type: ignore
         )

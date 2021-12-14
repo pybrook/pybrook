@@ -10,6 +10,8 @@ ignore =
     WPS602
     # redundant with W0622 (builtin override), which is more precise about line number
     A001
+    # multi-line function type annotation
+    WPS115
     # missing docstring in magic method
     D105
     # multi-line docstring summary should start at the first line

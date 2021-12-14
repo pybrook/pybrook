@@ -6,7 +6,6 @@ from typing import Dict, Iterable, Mapping, Tuple
 
 import aioredis
 import redis
-from loguru import logger
 
 CONSUMER_NAME_LENGTH = 64
 
@@ -70,24 +69,6 @@ class BaseStreamConsumer:
     def active(self, value: bool):
         self._active = value
 
-    async def run_async(self):  # noqa: WPS217
-        signal.signal(signal.SIGTERM, self.stop)
-        redis_conn: aioredis.Redis = await aioredis.from_url(
-            self._redis_url, encoding='utf-8', decode_responses=True)
-        self.active = True
-        xreadgroup_params = self._xreadgroup_params
-        while self.active:
-            response = await redis_conn.xreadgroup(**xreadgroup_params)
-            for stream, messages in response:
-                for msg_id, payload in messages:
-                    # TODO: Add a configurable limit
-                    asyncio.create_task(
-                        self._handle_message(stream, msg_id, payload,
-                                             redis_conn))
-
-        await redis_conn.close()
-        await redis_conn.connection_pool.disconnect()
-
     @property
     def _xreadgroup_params(self) -> Mapping:
         consumer_name = secrets.token_urlsafe(CONSUMER_NAME_LENGTH)
@@ -142,6 +123,32 @@ class SyncStreamConsumer(BaseStreamConsumer):
 
 
 class AsyncStreamConsumer(BaseStreamConsumer):
+    async def process_message_async(
+            self, stream_name: str, message: Dict[str, str], *,
+            redis_conn: aioredis.Redis,
+            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+        raise NotImplementedError(
+            f'Async version of process_message for {type(self).__name__} not implemented.'
+        )
+
+    async def run_async(self):  # noqa: WPS217
+        signal.signal(signal.SIGTERM, self.stop)
+        redis_conn: aioredis.Redis = await aioredis.from_url(
+            self._redis_url, encoding='utf-8', decode_responses=True)
+        self.active = True
+        xreadgroup_params = self._xreadgroup_params
+        while self.active:
+            response = await redis_conn.xreadgroup(**xreadgroup_params)
+            for stream, messages in response:
+                for msg_id, payload in messages:
+                    # TODO: Add a configurable limit
+                    asyncio.create_task(
+                        self._handle_message(stream, msg_id, payload,
+                                             redis_conn))
+
+        await redis_conn.close()
+        await redis_conn.connection_pool.disconnect()
+
     async def _handle_message(self, stream: str, msg_id: str,
                               payload: Dict[str,
                                             str], redis_conn: aioredis.Redis):
@@ -158,14 +165,6 @@ class AsyncStreamConsumer(BaseStreamConsumer):
             except aioredis.WatchError:
                 await redis_conn.xack(stream, self._consumer_group_name,
                                       msg_id)
-
-    async def process_message_async(
-            self, stream_name: str, message: Dict[str, str], *,
-            redis_conn: aioredis.Redis,
-            pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        raise NotImplementedError(
-            f'Async version of process_message for {type(self).__name__} not implemented.'
-        )
 
 
 class GearsStreamConsumer(BaseStreamConsumer):

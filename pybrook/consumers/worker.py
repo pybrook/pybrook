@@ -33,8 +33,9 @@ class Worker:
 
     def _spawn_sync(self,
                     processes_num: int) -> Iterable[multiprocessing.Process]:
-        return self._spawn(target=self._consumer.run_sync,  # type: ignore
-                           processes_num=processes_num)
+        return self._spawn(
+            target=self._consumer.run_sync,  # type: ignore
+            processes_num=processes_num)
 
     def _async_wrapper(self, coroutines_num: int):
         policy = asyncio.get_event_loop_policy()
@@ -42,8 +43,11 @@ class Worker:
         coroutines = [
             self._consumer.run_async() for _ in range(coroutines_num)
         ]
-        asyncio.get_event_loop().run_until_complete(
-            asyncio.gather(*coroutines))
+        try:
+            asyncio.get_event_loop().run_until_complete(
+                asyncio.gather(*coroutines))
+        except KeyboardInterrupt:
+            pass
 
     def _spawn_async(self, *, processes_num: int,
                      coroutines_num: int) -> Iterable[multiprocessing.Process]:
@@ -93,11 +97,15 @@ class WorkerManager:
                 raise NotImplementedError(c)
             processes.extend(procs)
         for redis_url, consumers in dict(gears_consumers).items():
-            redis = Redis.from_url(redis_url, decode_responses=True, encoding='utf-8')
+            redis = Redis.from_url(redis_url,
+                                   decode_responses=True,
+                                   encoding='utf-8')
             with redis.pipeline() as p:
                 p.watch('RG.REGISTERLOCK')
                 if p.exists('RG.REGISTERLOCK'):
-                    raise RuntimeError('Try again later, RG registration is locked, possibly by another instance')
+                    raise RuntimeError(
+                        'Try again later, RG registration is locked, possibly by another instance'
+                    )
                 p.multi()
                 p.set('RG.REGISTERLOCK', '1')
                 p.expire('RG.REGISTERLOCK', '5')
@@ -108,5 +116,8 @@ class WorkerManager:
             for c in consumers:
                 c.register_builder(redis)
             redis.delete('RG.REGISTERLOCK')
-        for p in processes:
-            p.join()
+        for proc in processes:
+            try:
+                proc.join()
+            except KeyboardInterrupt:
+                print('\nShutting down.')

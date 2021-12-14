@@ -194,12 +194,17 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
 
 def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
                                   limit_time, replace_process_with_thread):
-    resolver = DependencyResolver(resolver_name='ab_resolver',
-                                  dependencies={
-                                      'a': ':a',
-                                      'b': ':b'
-                                  },
-                                  redis_url=TEST_REDIS_URI)
+    resolver = DependencyResolver(
+        resolver_name='ab_resolver',
+        dependencies=[
+            DependencyResolver.Dependency(src_stream=':a',
+                                          src_key='a',
+                                          dst_key='a'),
+            DependencyResolver.Dependency(src_stream=':b',
+                                          src_key='b',
+                                          dst_key='b'),
+        ],
+        redis_url=TEST_REDIS_URI)
     resolver.register_consumer()
     ps = []
     for i in range(16):
@@ -224,13 +229,18 @@ def test_perf(test_input_perf, redis_sync):
                             namespace='test_perf',
                             read_chunk_length=10,
                             input_streams=['test_input'])
-    resolver = DependencyResolver(resolver_name='ab_resolver',
-                                  dependencies={
-                                      'a': ':test_perf:split',
-                                      'b': ':test_perf:split'
-                                  },
-                                  read_chunk_length=10,
-                                  redis_url=TEST_REDIS_URI)
+    resolver = DependencyResolver(
+        resolver_name='ab_resolver',
+        dependencies=[
+            DependencyResolver.Dependency(src_stream=':test_perf:split',
+                                          src_key='a',
+                                          dst_key='a'),
+            DependencyResolver.Dependency(src_stream=':test_perf:split',
+                                          src_key='b',
+                                          dst_key='b'),
+        ],
+        read_chunk_length=10,
+        redis_url=TEST_REDIS_URI)
 
     splitter_procs = Worker(splitter).run_sync(processes_num=3)
     resolver_procs = Worker(resolver).run_sync(processes_num=8)

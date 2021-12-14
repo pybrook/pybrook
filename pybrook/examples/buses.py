@@ -1,5 +1,6 @@
-import asyncio
 from datetime import datetime
+
+import httpx
 
 from pybrook.models import InReport, OutReport, PyBrook, ReportField, dependency
 
@@ -25,7 +26,7 @@ def calc_course_id(
         latitude: float = dependency(LocationReport.latitude),
         longitude: float = dependency(LocationReport.longitude),
 ) -> float:
-    return vehicle_id * latitude * longitude
+    return 1234
 
 
 @brook.output('course-report')
@@ -37,6 +38,13 @@ class CourseReport(OutReport):
     temperature = ReportField(LocationReport.temperature)
     doors_open = ReportField(LocationReport.doors_open)
     speed = ReportField(LocationReport.speed)
+
+
+@brook.output('test-report')
+class TestReport(OutReport):
+    course_id = ReportField(LocationReport.speed)
+    latitude = ReportField(LocationReport.latitude)
+    longitude = ReportField(LocationReport.longitude)
 
 
 if __name__ == '__main__':

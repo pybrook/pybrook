@@ -1,7 +1,6 @@
 import dataclasses
 import inspect
-import json
-from functools import lru_cache, cached_property
+from functools import lru_cache
 from typing import (
     Any,
     AsyncIterator,
@@ -18,8 +17,6 @@ from typing import (
 import aioredis
 import fastapi
 import pydantic
-from fastapi import FastAPI
-from pydantic import BaseModel
 
 from pybrook.config import FIELD_PREFIX
 from pybrook.consumers.base import BaseStreamConsumer
@@ -42,7 +39,7 @@ class ConsumerGenerator:
 
 class RouteGenerator:
     @classmethod
-    def gen_routes(cls, app: FastAPI, redis_dep: aioredis.Redis):
+    def gen_routes(cls, app: fastapi.FastAPI, redis_dep: aioredis.Redis):
         raise NotImplementedError
 
 
@@ -88,7 +85,7 @@ class SourceField:
         self.source_obj = source_obj
         self.value_type = value_type
 
-    @property
+    @property  # type: ignore
     @lru_cache
     def stream_name(self) -> str:
         if self.source_obj:
@@ -162,11 +159,11 @@ class InReport(ConsumerGenerator,
         model.add_consumer(splitter)
 
     @classmethod
-    def gen_routes(cls, app: FastAPI, redis_dep: aioredis.Redis):
+    def gen_routes(cls, app: fastapi.FastAPI, redis_dep: aioredis.Redis):
         @app.post(f'/{cls._options.name}', name=f'Add {cls._options.name}')
-        async def add_report(report: cls = fastapi.Body(...),  # type: ignore
-                             redis: aioredis.Redis = redis_dep
-                             ):  # type: ignore
+        async def add_report(
+                report: cls = fastapi.Body(...),  # type: ignore
+                redis: aioredis.Redis = redis_dep):  # type: ignore
             await redis.xadd(cls._options.stream_name,
                              redisable_encoder(report))
 
@@ -184,7 +181,7 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
     def _validate_options(self, options: OutReportOptions) -> OutReportOptions:
         return options
 
-    @property
+    @property  # type: ignore
     @lru_cache
     def report_fields(cls) -> Dict[str, 'ReportField']:
         return {
@@ -193,15 +190,15 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
             if isinstance(member, ReportField)
         }
 
-    @property
+    @property  # type: ignore
     @lru_cache
-    def model(cls) -> Type[BaseModel]:
+    def model(cls) -> Type[pydantic.BaseModel]:
         pydantic_fields = {
             field: (member.source_field.value_type, pydantic.Field())
-            for field, member in cls.report_fields.items()
+            for field, member in cls.report_fields.items()  # type: ignore
         }
         if not hasattr(cls, '_model'):
-            cls._model: Type[BaseModel] = pydantic.create_model(
+            cls._model: Type[pydantic.BaseModel] = pydantic.create_model(
                 cls.__name__ + 'Model',
                 **pydantic_fields  # type: ignore
             )
@@ -213,27 +210,30 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
     report_fields: Dict[str, 'ReportField']
 
     @classmethod
-    def gen_routes(cls, app: FastAPI, redis_dep: aioredis.Redis):
-        @app.get(f'/{cls._options.name}',
-                 response_model=cls.model,
-                 name=f'Retrieve {cls._options.name}')
+    def gen_routes(cls, app: fastapi.FastAPI, redis_dep: aioredis.Redis):
+        @app.get(
+            f'/{cls._options.name}',
+            response_model=cls.model,  # type: ignore
+            name=f'Retrieve {cls._options.name}')
         async def get_report(redis: aioredis.Redis = redis_dep):
             for msg_id, msg_body in (await
                                      redis.xrevrange(cls._options.stream_name
                                                      )):
                 return cls.model(**msg_body)
-            else:
-                return {}
+            return {}
 
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
         dependency_resolver = DependencyResolver(
             redis_url=model.redis_url,
             output_stream_name=cls._options.stream_name,
-            dependencies={
-                dependency_name: field.source_field.stream_name
-                for dependency_name, field in cls.report_fields.items()
-            },
+            dependencies=[
+                DependencyResolver.Dependency(
+                    src_stream=field.source_field.stream_name,
+                    src_key=field.source_field.field_name,
+                    dst_key=dep_key)
+                for dep_key, field in cls.report_fields.items()
+            ],
             resolver_name=f'{cls._options.name}')
         model.add_consumer(dependency_resolver)
 
@@ -279,10 +279,13 @@ class ArtificialField(SourceField, ConsumerGenerator):
             redis_url=model.redis_url,
             output_stream_name=
             f'{FIELD_PREFIX}{self.field_name}{FIELD_PREFIX}deps',
-            dependencies={
-                dep_name: dep.src_field.stream_name
-                for dep_name, dep in self.dependencies.items()
-            },
+            dependencies=[
+                DependencyResolver.Dependency(
+                    src_stream=dep.src_field.stream_name,
+                    src_key=dep.src_field.field_name,
+                    dst_key=dep_key)
+                for dep_key, dep in self.dependencies.items()
+            ],
             resolver_name=f'{self.field_name}')
         model.add_consumer(dependency_resolver)
 
@@ -311,7 +314,7 @@ TO = TypeVar('TO', bound=Type[OutReport])
 
 class PyBrookApi:
     def __init__(self, model: 'PyBrook'):
-        self.fastapi = FastAPI()
+        self.fastapi = fastapi.FastAPI()
         self.model = model
 
     async def redis_dependency(self) -> AsyncIterator[aioredis.Redis]:
@@ -338,7 +341,7 @@ class PyBrook:
         self.api: PyBrookApi = PyBrookApi(self)
 
     @property
-    def app(self) -> FastAPI:
+    def app(self) -> fastapi.FastAPI:
         return self.api.fastapi
 
     def run(self):

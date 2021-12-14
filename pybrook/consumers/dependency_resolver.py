@@ -1,7 +1,6 @@
-from itertools import chain
-from typing import Dict
+import dataclasses
+from typing import Dict, List
 
-import aioredis
 import redis
 
 from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
@@ -9,31 +8,38 @@ from pybrook.consumers.base import SyncStreamConsumer
 
 
 class DependencyResolver(SyncStreamConsumer):
+    @dataclasses.dataclass
+    class Dependency:
+        src_stream: str
+        src_key: str
+        dst_key: str
+
     def __init__(self,
                  *,
                  redis_url: str,
                  resolver_name: str,
                  output_stream_name: str = None,
-                 dependencies: Dict[str, str],
+                 dependencies: List[Dependency],
                  read_chunk_length: int = 100):
         """
 
         Args:
-            redis_url:
-            resolver_name:
+            redis_url: Redis server URL
+            resolver_name: Name of the resolver, used for the consumer group
+            output_stream_name: name of the output stream
             dependencies:
                 Keys are source streams, values are dependency names used as keys in the output stream.
                 Source streams should contain just the internal msgid and values
                 for the specific field.
-            read_chunk_length:
+            read_chunk_length: Redis XACK COUNT arg
         """
-        self._dependencies = dependencies
+        self._dependencies: List[DependencyResolver.Dependency] = dependencies
         self._num_dependencies = len(dependencies)
         self._resolver_name = resolver_name
         if not output_stream_name:
             output_stream_name = f'{FIELD_PREFIX}{self._resolver_name}{FIELD_PREFIX}deps'
         self.output_stream_name: str = output_stream_name
-        input_streams = list(set(dependencies.values()))
+        input_streams = list(set(s.src_stream for s in dependencies))
         super().__init__(redis_url=redis_url,
                          consumer_group_name=resolver_name,
                          input_streams=input_streams,
@@ -53,11 +59,14 @@ class DependencyResolver(SyncStreamConsumer):
         message_id = message.pop(MSG_ID_FIELD)
         dep_key = self.dependency_map_key(message_id)
         incr_key = dep_key + f'{FIELD_PREFIX}incr'
-        message = {k: message[k] for k in self._dependencies if k in message}
+        new_deps = {
+            k.dst_key: message[k.src_key]
+            for k in self._dependencies if k.src_key in message
+        }
         with redis_conn.pipeline() as p:
             p.multi()
-            p.hset(dep_key, mapping=message)  # type: ignore
-            p.incrby(incr_key, len(message))
+            p.hset(dep_key, mapping=new_deps)  # type: ignore
+            p.incrby(incr_key, len(new_deps))
             _, incr_num = p.execute()
         if incr_num == self._num_dependencies:
             dependencies = redis_conn.hgetall(dep_key)
