@@ -1,0 +1,11 @@
+{
+  "devDependencies": {
+    "@rollup/plugin-image": "^2.1.1",
+    "carbon-icons-svelte": "^10.44.3",
+    "postcss": "^8.4.5",
+    "rollup-plugin-postcss": "^4.0.2"
+  },
+  "dependencies": {
+    "leaflet": "^1.7.1"
+  }
+}
