@@ -2,7 +2,7 @@ import asyncio
 import secrets
 import signal
 from enum import Enum
-from typing import Dict, Iterable, Mapping, Tuple, Set
+from typing import Dict, Iterable, Mapping, Set, Tuple
 
 import aioredis
 import redis
@@ -173,7 +173,6 @@ class AsyncStreamConsumer(BaseStreamConsumer):
 
 
 class GearsStreamConsumer(BaseStreamConsumer):
-
     @property
     def supported_impl(self) -> Set[ConsumerImpl]:
         return super().supported_impl | {ConsumerImpl.GEARS}

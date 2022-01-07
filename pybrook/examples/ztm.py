@@ -1,9 +1,8 @@
 from datetime import datetime
 
-import httpx
 from pydantic import Field
 
-from pybrook.models import InReport, OutReport, PyBrook, ReportField, dependency
+from pybrook.models import InReport, OutReport, PyBrook, ReportField
 
 brook = PyBrook('redis://localhost')
 app = brook.app
@@ -27,6 +26,10 @@ class LocationReport(OutReport):
     line = ReportField(ZTMReport.line)
     time = ReportField(ZTMReport.time)
 
+
+brook.set_meta(latitude_field=LocationReport.latitude,
+               longitude_field=LocationReport.longitude,
+               group_field=LocationReport.line)
 
 if __name__ == '__main__':
     brook.run()

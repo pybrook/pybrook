@@ -31,7 +31,7 @@ class BaseSplitter(BaseStreamConsumer):
 
     def split_msg(self, message: Dict[str, str], *, obj_id: str,
                   obj_msg_id: str):
-        message_id = f'{obj_id}:{obj_msg_id}'
+        message_id = f'{obj_id}{FIELD_PREFIX}{obj_msg_id}'
         return {
             f'{FIELD_PREFIX}{self.namespace}{FIELD_PREFIX}split': {
                 MSG_ID_FIELD: message_id,
@@ -83,5 +83,6 @@ for s in {self.input_streams}:
         logger.info(f'Registered Redis Gears Reader: \n{cmd}')
 
 
-class Splitter(GearsSplitter, AsyncSplitter, SyncSplitter, BaseSplitter):
-    ...
+class Splitter(GearsSplitter, AsyncSplitter, SyncSplitter,
+               BaseSplitter):  # noqa: WPS215
+    """Splitter."""

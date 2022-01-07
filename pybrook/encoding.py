@@ -6,7 +6,8 @@ from pydantic import BaseModel
 
 
 def redisable_encoder(model: Union[BaseModel, Dict]):
-    encoded_dict = jsonable_encoder(model.dict(by_alias=False))
+    encoded_dict = jsonable_encoder(
+        model.dict(by_alias=False) if isinstance(model, BaseModel) else model)
     for k, v in encoded_dict.items():
         if type(v) in {str, bytes, int, float}:  # noqa: WPS516
             continue

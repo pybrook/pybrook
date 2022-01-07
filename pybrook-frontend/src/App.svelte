@@ -1,6 +1,5 @@
 <script>
     import LeafletMap from './LeafletMap.svelte';
-    import { readable } from 'svelte/store';
     import Marker from './Marker.svelte';
     import 'carbon-components-svelte/css/all.css';
     import reportStore from './reportStore';
@@ -51,7 +50,6 @@
         }
     )
     let vehiclesInViewPort = [];
-    $: vehicleEntries = []
 
     let theme = "white"; // "white" | "g10" | "g80" | "g90" | "g100"
 
@@ -130,7 +128,7 @@
         on:submit={() => modalOpen = false}
 >
     <Accordion>
-        {#each modalVehicleData as [field, value]}
+        {#each modalVehicleData as [field, value] (field)}
             <AccordionItem title="{field}" open>
                 <p>
                     {value}
