@@ -39,7 +39,7 @@ class ConsumerGenerator:
 
 class RouteGenerator:
     @classmethod
-    def gen_routes(cls, app: fastapi.FastAPI, redis_dep: aioredis.Redis):
+    def gen_routes(cls, api: 'PyBrookApi', redis_dep: aioredis.Redis):
         raise NotImplementedError
 
 
@@ -159,8 +159,8 @@ class InReport(ConsumerGenerator,
         model.add_consumer(splitter)
 
     @classmethod
-    def gen_routes(cls, app: fastapi.FastAPI, redis_dep: aioredis.Redis):
-        @app.post(f'/{cls._options.name}', name=f'Add {cls._options.name}')
+    def gen_routes(cls, api: 'PyBrookApi', redis_dep: aioredis.Redis):
+        @api.fastapi.post(f'/{cls._options.name}', name=f'Add {cls._options.name}')
         async def add_report(
                 report: cls = fastapi.Body(...),  # type: ignore
                 redis: aioredis.Redis = redis_dep):  # type: ignore
@@ -210,8 +210,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
     report_fields: Dict[str, 'ReportField']
 
     @classmethod
-    def gen_routes(cls, app: fastapi.FastAPI, redis_dep: aioredis.Redis):
-        @app.get(
+    def gen_routes(cls, api: 'PyBrookApi', redis_dep: aioredis.Redis):
+        @api.fastapi.get(
             f'/{cls._options.name}',
             response_model=cls.model,  # type: ignore
             name=f'Retrieve {cls._options.name}')
@@ -221,6 +221,19 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                                                      )):
                 return cls.model(**msg_body)
             return {}
+
+        @api.fastapi.websocket(f'/{cls._options.name}')
+        async def read_reports(websocket: fastapi.WebSocket, redis: aioredis.Redis = redis_dep):
+            await websocket.accept()
+            last_msg = '$'
+            stream_name = cls._options.stream_name
+            while True:
+                if messages := await redis.xread(
+                            {stream_name: last_msg}, count=100, block=100):
+                    # Wiadomości w strumieniach są mapami
+                    for m_data in dict(messages)[stream_name]:
+                        last_msg, payload = m_data
+                        await websocket.send_text(cls.model(**payload).json())
 
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
@@ -327,7 +340,7 @@ class PyBrookApi:
         await redis.connection_pool.disconnect()
 
     def visit(self, generator: RouteGenerator):
-        generator.gen_routes(self.fastapi,
+        generator.gen_routes(self,
                              redis_dep=fastapi.Depends(self.redis_dependency))
 
 
@@ -388,5 +401,4 @@ class PyBrook:
         generator.gen_consumers(self)
 
     def add_consumer(self, consumer: BaseStreamConsumer):
-        print(consumer)
         self.consumers.append(consumer)

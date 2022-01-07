@@ -9,7 +9,7 @@ readme = "README.md"
 python = "^3.7"
 aioredis = {extras = ["hiredis"], version = "^2.0.0"}
 fastapi = "^0.70.0"
-uvicorn = "^0.15.0"
+uvicorn = {extras = ["standard"], version = "^0.16.0"}
 pytest = "^6.2.5"
 redis = "^3.5.3"
 loguru = "^0.5.3"

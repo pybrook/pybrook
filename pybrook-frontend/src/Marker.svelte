@@ -4,21 +4,31 @@
 	export let map, lat, lng;
 
 	import { createEventDispatcher } from 'svelte'
+    import {tweened} from "svelte/motion";
+    import {cubicOut} from "svelte/easing";
 	const dispatch = createEventDispatcher();
 	let prevLatLng = undefined;
 	let destroy;
 	let markerProto;
-	
-	$: latLng = [lat, lng];
+
+    let posAnim = (initial) => tweened(initial, {
+        duration: 1000,
+        easing: cubicOut
+    });
+    let latAnim = posAnim(lat);
+    let lngAnim = posAnim(lng);
+    $: latAnim.set(lat);
+    $: lngAnim.set(lng);
 	$: {
-		if(prevLatLng !== undefined && prevLatLng !== latLng){
-			marker.setLatLng(latLng);
-		}	
-		prevLatLng = latLng;
+        if(marker) {
+            marker.setLatLng([$latAnim, $lngAnim]);
+        }
+
 	}
 	
 	function createMarker(markerElement){
-		marker = L.marker(latLng).addTo(map);
+        console.log('create marker')
+		marker = L.marker([$latAnim, $lngAnim]).addTo(map);
 		let destroy = () => {
 			marker.remove();
 			marker = undefined;

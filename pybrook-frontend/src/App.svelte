@@ -1,53 +1,114 @@
 <script>
-    import markerIconPng from 'leaflet/dist/images/marker-icon.png'
     import LeafletMap from './LeafletMap.svelte';
     import {tweened} from 'svelte/motion';
     import {cubicOut} from 'svelte/easing';
-    import Marker from './Marker.svelte'
-    import 'carbon-components-svelte/css/all.css'
+    import Marker from './Marker.svelte';
+    import 'carbon-components-svelte/css/all.css';
+    import reportStore from './reportStore';
+
     import {
         Accordion,
         AccordionItem,
         ClickableTile,
         Column,
-        Grid,
+        Grid, InlineNotification, Link,
         Modal,
-        Row,
-        SelectableTile
+        Row
     } from "carbon-components-svelte";
 
-    let posAnim = (initial) => tweened(initial, {
-        duration: 1000,
-        easing: cubicOut
-    });
-    const lng = posAnim(-0.07);
-    const lat = posAnim(51.5);
+    let vehicles = {}
+    let groups = {};
+    let vehiclePositions = {};
+    let vehicleReports = {};
+    let openedGroups = new Set();
+    let openGroup = {};
+
+
+    reportStore.subscribe(
+        (value) => {
+            if(!value) return;
+            let vehicleId = value["vehicle_id"];
+            if(!vehicles.hasOwnProperty(vehicleId)){
+                let group = value["line"];
+                if(!groups[group]){
+                    groups[group] = new Set();
+                }
+                groups[group] = groups[group].add(vehicleId);
+                vehicles[vehicleId] = group
+                vehicleReports[vehicleId] = value;
+            }
+
+            vehiclePositions[vehicleId] = {
+                lat: value["latitude"],
+                lon: value["longitude"]
+            }
+
+            if(vehicleId == modalVehicleId){
+                console.log(value);
+                modalVehicleData = Object.entries(value);
+            }
+        }
+    )
+    let vehiclesInViewPort = [];
+    $: vehicleEntries = []
+
     let theme = "white"; // "white" | "g10" | "g80" | "g90" | "g100"
 
     $: document.documentElement.setAttribute("theme", theme);
 
-    function moveMarker() {
-        lng.set($lng + 0.001);
-        lat.set($lat + 0.001);
-    }
 
     let modalOpen = false;
+    let modalVehicleId = undefined;
+    let modalVehicleData = [];
 </script>
 <Grid fullWidth>
 
-    <Row style="height: 100vh;padding-top:20px;padding-bottom:20px;">
-        <Column xs={4} sm={4} md={8} lg={8} xlg={12}>
-            <LeafletMap let:map>
-                <Marker {map} lat={$lat} lng={$lng} on:click={() => modalOpen = true}/>
-                <Marker {map} lat={51.5} lng={-0.08} on:click={() => modalOpen = true}/>
+    <Row>
+        <Column padding xs={4} sm={4} md={8} lg={8} xlg={12} aspectRatio="1x1">
+            <LeafletMap let:map={map} on:moveend={({detail}) => {
+                let newVehiclesInViewPort = []
+                let {bounds} = detail;
+                Object.entries(vehiclePositions).forEach(
+                    ([vehicleId, {lat, lon}]) => {
+                        if (bounds.contains([lat, lon]))
+                            newVehiclesInViewPort.push(vehicleId)
+                    }
+                )
+                vehiclesInViewPort = newVehiclesInViewPort;
+                console.log(vehiclesInViewPort)
+            }}>
+                {#if vehiclesInViewPort.length <= 400}
+                {#each vehiclesInViewPort as vehicleId}
+                {#key vehicleId}
+                    <Marker {map} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon} on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}/>
+                {/key}
+                {/each}
+                {/if}
+
             </LeafletMap>
-        </Column>
-        <Column xs={4} sm={4} md={8} lg={8} xlg={4} style="overflow-y: auto;max-height: 100%;">
-            {#each Array(10000) as unused}
-            <div class="bordered-tile">
-                <ClickableTile class="xd" on:click={() => modalOpen = true}>523<br/><span style="color:#333">Linia 523</span></ClickableTile>
+
+
+            </Column>
+        <Column padding xs={4} sm={4} md={8} lg={8} xlg={4}>
+            {#if vehiclesInViewPort.length > 400}
+                <InlineNotification kind="warning" title="Too many vehicles in viewport: " subtitle="please zoom in to show vehicle positions" hideCloseButton/>
+            {/if}
+            <div style="overflow-y: auto;max-height: 80vh;">
+                <Accordion>
+                    {#each Object.entries(groups) as [group, vehicles]}
+                        {#key group}
+                        <AccordionItem title="{group}" bind:open={openGroup[group]}>
+                                    {#if openGroup[group]}
+                                    {#each Array.from(vehicles) as vehicleId}
+                                        {@debug vehicleId}
+                                        <p><Link on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}>{vehicleId}</Link></p>
+                                    {/each}
+                                    {/if}
+                        </AccordionItem>
+                        {/key}
+                    {/each}
+                </Accordion>
             </div>
-            {/each}
         </Column>
     </Row>
 </Grid>
@@ -55,39 +116,21 @@
 <Modal
         size="lg"
         open="{modalOpen}"
-        modalHeading="Vehicle 523"
+        modalHeading="Vehicle {modalVehicleId}"
         primaryButtonText="Close"
         on:close={() => modalOpen = false}
         on:submit={() => modalOpen = false}
 >
     <Accordion>
-        <AccordionItem title="Natural Language Classifier">
+        {#each modalVehicleData as [field, value]}
+        <AccordionItem title="{field}" open>
             <p>
-                Natural Language Classifier uses advanced natural language processing and
-                machine learning techniques to create custom classification models. Users
-                train their data and the service predicts the appropriate category for the
-                inputted text.
+                {value}
             </p>
         </AccordionItem>
-        <AccordionItem title="Natural Language Understanding">
-            <p>
-                Analyze text to extract meta-data from content such as concepts, entities,
-                emotion, relations, sentiment and more.
-            </p>
-        </AccordionItem>
-        <AccordionItem title="Language Translator">
-            <p>
-                Translate text, documents, and websites from one language to another.
-                Create industry or region-specific translations via the service's
-                customization capability.
-            </p>
-        </AccordionItem>
+        {/each}
     </Accordion>
 </Modal>
-<button on:click={moveMarker} id='move-btn'>
-    MOVE MARKER {Math.round($lat * 10000) / 10000}, {Math.round($lng * 10000) / 10000}
-</button>
-
 <style>
     .bordered-tile {
         border-bottom: 1px solid #aaa;
