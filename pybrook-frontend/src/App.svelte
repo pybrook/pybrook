@@ -1,7 +1,6 @@
 <script>
     import LeafletMap from './LeafletMap.svelte';
-    import {tweened} from 'svelte/motion';
-    import {cubicOut} from 'svelte/easing';
+    import { readable } from 'svelte/store';
     import Marker from './Marker.svelte';
     import 'carbon-components-svelte/css/all.css';
     import reportStore from './reportStore';
@@ -9,7 +8,8 @@
     import {
         Accordion,
         AccordionItem,
-        ClickableTile,
+        UnorderedList,
+        ListItem,
         Column,
         Grid, InlineNotification, Link,
         Modal,
@@ -18,19 +18,21 @@
 
     let vehicles = {}
     let groups = {};
+    let groupKeys = new Set();
     let vehiclePositions = {};
     let vehicleReports = {};
-    let openedGroups = new Set();
-    let openGroup = {};
+    let openGroups = {};
+    let notificationHeight;
 
     reportStore.subscribe(
         (value) => {
-            if(!value) return;
+            if (!value) return;
             let vehicleId = value["vehicle_id"];
-            if(!vehicles.hasOwnProperty(vehicleId)){
+            if (!vehicles.hasOwnProperty(vehicleId)) {
                 let group = value["line"];
-                if(!groups[group]){
+                if (!groups[group]) {
                     groups[group] = new Set();
+                    groupKeys = groupKeys.add(group);
                 }
                 groups[group] = groups[group].add(vehicleId);
                 vehicles[vehicleId] = group
@@ -42,7 +44,7 @@
                 lon: value["longitude"]
             }
 
-            if(vehicleId == modalVehicleId){
+            if (vehicleId == modalVehicleId) {
                 console.log(value);
                 modalVehicleData = Object.entries(value);
             }
@@ -79,33 +81,39 @@
                 console.log(vehiclesInViewPort)
             }}>
                 {#if !tooManyVehicles}
-                {#each vehiclesInViewPort as vehicleId}
-                {#key vehicleId}
-                    <Marker {map} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon} on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}/>
-                {/key}
-                {/each}
+                    {#each vehiclesInViewPort as vehicleId}
+                        {#key vehicleId}
+                            <Marker {map} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon}
+                                    on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}/>
+                        {/key}
+                    {/each}
                 {/if}
 
             </LeafletMap>
 
 
-            </Column>
+        </Column>
         <Column padding xs={4} sm={4} md={8} lg={8} xlg={4}>
             {#if tooManyVehicles}
-                <InlineNotification kind="warning" title="Too many vehicles in viewport: " subtitle="please zoom in to show vehicle positions" hideCloseButton/>
+                <div bind:clientHeight={notificationHeight}>
+                    <InlineNotification kind="warning" title="Too many vehicles in viewport: "
+                                        subtitle="Please zoom in to show vehicle positions" hideCloseButton/>
+                </div>
             {/if}
-            <div style={tooManyVehicles ? "overflow-y: auto;max-height: calc(100vh - 100px);": "overflow-y: auto;max-height: calc(100vh - 40px);" }>
+            <div style={tooManyVehicles ? `overflow-y: auto;max-height: calc(100vh - ${notificationHeight}px - 80px);`: "overflow-y: auto;max-height: calc(100vh - 40px);" }>
                 <Accordion>
-                    {#each Object.entries(groups) as [group, vehicles]}
-                        {#key group}
-                        <AccordionItem title="{group}" bind:open={openGroup[group]}>
-                                    {#if openGroup[group]}
-                                    {#each Array.from(vehicles) as vehicleId}
-                                        <p><Link on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}>{vehicleId}</Link></p>
-                                    {/each}
-                                    {/if}
+                    {#each Array.from(groupKeys).sort() as group (group)}
+                        <AccordionItem title="{group}" bind:open={openGroups[group]}>
+                            {#if openGroups[group]}
+                            <UnorderedList>
+                                {#each Array.from(groups[group]) as vehicleId (vehicleId)}
+                                    <ListItem>
+                                        <Link style="cursor: pointer;" on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}>{vehicleId}</Link>
+                                    </ListItem>
+                                {/each}
+                            </UnorderedList>
+                            {/if}
                         </AccordionItem>
-                        {/key}
                     {/each}
                 </Accordion>
             </div>
@@ -123,11 +131,11 @@
 >
     <Accordion>
         {#each modalVehicleData as [field, value]}
-        <AccordionItem title="{field}" open>
-            <p>
-                {value}
-            </p>
-        </AccordionItem>
+            <AccordionItem title="{field}" open>
+                <p>
+                    {value}
+                </p>
+            </AccordionItem>
         {/each}
     </Accordion>
 </Modal>
@@ -135,6 +143,7 @@
     .bordered-tile {
         border-bottom: 1px solid #aaa;
     }
+
     #move-btn {
         position: absolute;
         z-index: 1000;

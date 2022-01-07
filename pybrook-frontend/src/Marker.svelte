@@ -1,5 +1,4 @@
 <script>
-	import { onMount } from 'svelte';
 	export let marker = undefined;
 	export let map, lat, lng;
 
@@ -27,7 +26,6 @@
 	}
 	
 	function createMarker(markerElement){
-        console.log('create marker')
 		marker = L.marker([$latAnim, $lngAnim]).addTo(map);
 		let destroy = () => {
 			marker.remove();
