@@ -23,7 +23,6 @@
     let openedGroups = new Set();
     let openGroup = {};
 
-
     reportStore.subscribe(
         (value) => {
             if(!value) return;
@@ -60,11 +59,13 @@
     let modalOpen = false;
     let modalVehicleId = undefined;
     let modalVehicleData = [];
+
+    $: tooManyVehicles = vehiclesInViewPort.length > 100
 </script>
 <Grid fullWidth>
 
     <Row>
-        <Column padding xs={4} sm={4} md={8} lg={8} xlg={12} aspectRatio="1x1">
+        <Column padding xs={4} sm={4} md={8} lg={8} xlg={12}>
             <LeafletMap let:map={map} on:moveend={({detail}) => {
                 let newVehiclesInViewPort = []
                 let {bounds} = detail;
@@ -77,7 +78,7 @@
                 vehiclesInViewPort = newVehiclesInViewPort;
                 console.log(vehiclesInViewPort)
             }}>
-                {#if vehiclesInViewPort.length <= 400}
+                {#if !tooManyVehicles}
                 {#each vehiclesInViewPort as vehicleId}
                 {#key vehicleId}
                     <Marker {map} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon} on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}/>
@@ -90,17 +91,16 @@
 
             </Column>
         <Column padding xs={4} sm={4} md={8} lg={8} xlg={4}>
-            {#if vehiclesInViewPort.length > 400}
+            {#if tooManyVehicles}
                 <InlineNotification kind="warning" title="Too many vehicles in viewport: " subtitle="please zoom in to show vehicle positions" hideCloseButton/>
             {/if}
-            <div style="overflow-y: auto;max-height: 80vh;">
+            <div style={tooManyVehicles ? "overflow-y: auto;max-height: calc(100vh - 100px);": "overflow-y: auto;max-height: calc(100vh - 40px);" }>
                 <Accordion>
                     {#each Object.entries(groups) as [group, vehicles]}
                         {#key group}
                         <AccordionItem title="{group}" bind:open={openGroup[group]}>
                                     {#if openGroup[group]}
                                     {#each Array.from(vehicles) as vehicleId}
-                                        {@debug vehicleId}
                                         <p><Link on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}>{vehicleId}</Link></p>
                                     {/each}
                                     {/if}
