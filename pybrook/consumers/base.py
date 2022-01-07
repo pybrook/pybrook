@@ -2,7 +2,7 @@ import asyncio
 import secrets
 import signal
 from enum import Enum
-from typing import Dict, Iterable, Mapping, Tuple
+from typing import Dict, Iterable, Mapping, Tuple, Set
 
 import aioredis
 import redis
@@ -30,8 +30,8 @@ class BaseStreamConsumer:
         self.input_streams = tuple(input_streams)
 
     @property
-    def supported_impl(self):
-        return []
+    def supported_impl(self) -> Set[ConsumerImpl]:
+        return set()  # pragma: nocover
 
     def __repr__(self):
         return f'<{self.__class__.__name__} input_streams={self.input_streams}>'
@@ -56,10 +56,10 @@ class BaseStreamConsumer:
                                          mkstream=True)
             except redis.ResponseError as e:
                 if 'BUSYGROUP' not in str(e):
-                    raise e
+                    raise e  # pragma: nocover
 
     def stop(self, signum=None, frame=None):
-        self._active = False
+        self.active = False
 
     @property
     def active(self):
@@ -87,13 +87,13 @@ class SyncStreamConsumer(BaseStreamConsumer):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        raise NotImplementedError(
+        raise NotImplementedError(  # pragma: nocover
             f'Sync version of process_message for {type(self).__name__} not implemented.'
         )
 
     @property
-    def supported_impl(self):
-        return super().supported_impl + [ConsumerImpl.SYNC]
+    def supported_impl(self) -> Set[ConsumerImpl]:
+        return super().supported_impl | {ConsumerImpl.SYNC}
 
     def run_sync(self):
         signal.signal(signal.SIGTERM, self.stop)
@@ -115,7 +115,7 @@ class SyncStreamConsumer(BaseStreamConsumer):
                         p.xack(stream, self._consumer_group_name, msg_id)
                         try:
                             p.execute()
-                        except redis.WatchError:
+                        except redis.WatchError:  # pragma: nocover
                             redis_conn.xack(stream, self._consumer_group_name,
                                             msg_id)
         redis_conn.close()
@@ -127,12 +127,17 @@ class AsyncStreamConsumer(BaseStreamConsumer):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: aioredis.Redis,
             pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        raise NotImplementedError(
+        raise NotImplementedError(  # pragma: nocover
             f'Async version of process_message for {type(self).__name__} not implemented.'
         )
 
+    @property
+    def supported_impl(self) -> Set[ConsumerImpl]:
+        return super().supported_impl | {ConsumerImpl.ASYNC}
+
     async def run_async(self):  # noqa: WPS217
         signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
         redis_conn: aioredis.Redis = await aioredis.from_url(
             self._redis_url, encoding='utf-8', decode_responses=True)
         self.active = True
@@ -162,11 +167,16 @@ class AsyncStreamConsumer(BaseStreamConsumer):
             p.xack(stream, self._consumer_group_name, msg_id)
             try:
                 await p.execute()
-            except aioredis.WatchError:
+            except aioredis.WatchError:  # pragma: nocover
                 await redis_conn.xack(stream, self._consumer_group_name,
                                       msg_id)
 
 
 class GearsStreamConsumer(BaseStreamConsumer):
+
+    @property
+    def supported_impl(self) -> Set[ConsumerImpl]:
+        return super().supported_impl | {ConsumerImpl.GEARS}
+
     def register_builder(self, pipeline: redis.client.Pipeline):
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: nocover

@@ -19,7 +19,7 @@ from pybrook.consumers.base import (
     SyncStreamConsumer,
 )
 from pybrook.consumers.dependency_resolver import DependencyResolver
-from pybrook.consumers.splitter import AsyncSplitter, SyncSplitter
+from pybrook.consumers.splitter import AsyncSplitter, SyncSplitter, Splitter
 from pybrook.consumers.worker import Worker
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
@@ -223,12 +223,13 @@ def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
 
 
 def test_perf(test_input_perf, redis_sync):
-    splitter = SyncSplitter(consumer_group_name='splitter',
+    splitter = Splitter(consumer_group_name='splitter',
                             redis_url=TEST_REDIS_URI,
                             object_id_field='vehicle_id',
                             namespace='test_perf',
                             read_chunk_length=10,
                             input_streams=['test_input'])
+    repr(splitter)
     resolver = DependencyResolver(
         resolver_name='ab_resolver',
         dependencies=[
@@ -241,9 +242,11 @@ def test_perf(test_input_perf, redis_sync):
         ],
         read_chunk_length=10,
         redis_url=TEST_REDIS_URI)
-
+    repr(resolver)
     splitter_procs = Worker(splitter).run_sync(processes_num=3)
     resolver_procs = Worker(resolver).run_sync(processes_num=8)
+    splitter.register_consumer()  # should do nothing
+    assert splitter.supported_impl == {ConsumerImpl.GEARS, ConsumerImpl.ASYNC, ConsumerImpl.SYNC}
     sleep(4)
     for p in splitter_procs + resolver_procs:
         p.terminate()

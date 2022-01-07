@@ -81,3 +81,7 @@ for s in {self.input_streams}:
     GearsBuilder("StreamReader").foreach(process_message).register(s, trimStream=False, mode="sync")'''
         pipeline.execute_command('RG.PYEXECUTE', cmd)
         logger.info(f'Registered Redis Gears Reader: \n{cmd}')
+
+
+class Splitter(GearsSplitter, AsyncSplitter, SyncSplitter, BaseSplitter):
+    ...
