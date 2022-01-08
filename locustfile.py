@@ -1,5 +1,6 @@
 from datetime import datetime
 from json import loads
+from time import sleep
 
 from locust import FastHttpUser, task
 
@@ -25,6 +26,7 @@ class VehicleReportUser(FastHttpUser):
         if not time_ranges:
             init()
         if time_ranges[0] + time_diff > datetime.now():
+            sleep(0.1)
             return
         while not (reports_for_range := data[time_ranges[0].isoformat()]):
             time_ranges.pop(0)

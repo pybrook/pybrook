@@ -43,6 +43,7 @@
 
 <style type="text/css">
     .leaflet-map {
+        filter: brightness(1) invert(1) contrast(1) hue-rotate(200deg) saturate(1);
         width: 100%;
         height: calc(100vh - 40px);
     }

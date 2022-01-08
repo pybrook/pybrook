@@ -22,7 +22,21 @@
     let vehicleReports = {};
     let openGroups = {};
     let notificationHeight;
+    let bounds;
+    let vehiclesInViewPort = [];
 
+    $: {
+        if(bounds){
+            let newVehiclesInViewPort = []
+            Object.entries(vehiclePositions).forEach(
+                ([vehicleId, {lat, lon}]) => {
+                    if (bounds.contains([lat, lon]))
+                        newVehiclesInViewPort.push(vehicleId)
+                }
+            )
+            vehiclesInViewPort = newVehiclesInViewPort;
+        }
+    }
     reportStore.subscribe(
         (value) => {
             if (!value) return;
@@ -35,8 +49,9 @@
                 }
                 groups[group] = groups[group].add(vehicleId);
                 vehicles[vehicleId] = group
-                vehicleReports[vehicleId] = value;
             }
+
+            vehicleReports[vehicleId] = value;
 
             vehiclePositions[vehicleId] = {
                 lat: value["latitude"],
@@ -49,11 +64,10 @@
             }
         }
     )
-    let vehiclesInViewPort = [];
 
     let theme = "white"; // "white" | "g10" | "g80" | "g90" | "g100"
 
-    $: document.documentElement.setAttribute("theme", theme);
+    $: document.documentElement.setAttribute("theme", "g100");
 
 
     let modalOpen = false;
@@ -67,21 +81,15 @@
     <Row>
         <Column padding xs={4} sm={4} md={8} lg={8} xlg={12}>
             <LeafletMap let:map={map} on:moveend={({detail}) => {
-                let newVehiclesInViewPort = []
-                let {bounds} = detail;
-                Object.entries(vehiclePositions).forEach(
-                    ([vehicleId, {lat, lon}]) => {
-                        if (bounds.contains([lat, lon]))
-                            newVehiclesInViewPort.push(vehicleId)
-                    }
-                )
-                vehiclesInViewPort = newVehiclesInViewPort;
-                console.log(vehiclesInViewPort)
+                bounds = detail.bounds;
             }}>
                 {#if !tooManyVehicles}
                     {#each vehiclesInViewPort as vehicleId}
                         {#key vehicleId}
                             <Marker {map} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon}
+                                    vehicleGroup="{vehicleId}"
+                                    selected={modalVehicleId == vehicleId}
+                                    vehicleId="{vehicleId}"
                                     on:click={() => {modalOpen = true; modalVehicleId = vehicleId; modalVehicleData = Object.entries(vehicleReports[vehicleId])}}/>
                         {/key}
                     {/each}
