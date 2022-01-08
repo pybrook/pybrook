@@ -50,6 +50,11 @@
         width: 100%;
         height: calc(100vh - 40px - 3rem);
     }
+    @media screen and (max-width: 1056px){
+        .leaflet-map {
+            height: 80vh;
+        }
+    }
     :global(.leaflet-div-icon) {
          background: rgba(0,0,0,0) !important;
          border: rgba(0,0,0,0) !important;

@@ -67,9 +67,10 @@
             }
         }
     )
-
-    let theme = "white"; // "white" | "g10" | "g80" | "g90" | "g100"
+    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    let theme = darkModeQuery.matches ? "g100" : "white"; // "white" | "g10" | "g80" | "g90" | "g100"
     $: document.documentElement.setAttribute("theme", theme);
+
 
 
     let modalOpen = false;
@@ -116,7 +117,7 @@
                                         subtitle="Please zoom in to show vehicle positions" hideCloseButton/>
                 </div>
             {/if}
-            <div style={tooManyVehicles ? `overflow-y: auto;max-height: calc(100vh - ${notificationHeight}px - 80px - 3rem);`: "overflow-y: auto;max-height: calc(100vh - 40px - 3rem);" }>
+            <div id="accordion-wrapper" style={tooManyVehicles ? `overflow-y: auto;max-height: calc(100vh - ${notificationHeight}px - 80px - 3rem);`: "overflow-y: auto;max-height: calc(100vh - 40px - 3rem);" }>
                 <Accordion>
                     {#each Array.from(groupKeys).sort() as group (group)}
                         <AccordionItem title="{group}" bind:open={openGroups[group]}>
@@ -160,13 +161,21 @@
         font-weight: bold;
         flex-grow: 1;
     }
+    @media screen and (max-width: 1056px){
+        #accordion-wrapper {
+            max-height: none !important;
+            overflow-y: hidden !important;
+        }
+    }
     nav {
         padding-left: 2rem;
         padding-right: 2rem;
         display: flex;
         align-items: center;
         height: 3rem;
-        border-bottom: 1px solid white;
+        border-bottom: 1px solid var(--cds-text-01);
+        margin-right: 2px;
+        margin-left: 2px;
     }
 
 </style>
