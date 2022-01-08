@@ -12,6 +12,7 @@
     "@rollup/plugin-image": "^2.1.1",
     "@rollup/plugin-node-resolve": "^11.0.0",
     "carbon-components-svelte": "latest",
+    "carbon-icons-svelte": "^10.44.3",
     "fs-extra": "^10.0.0",
     "leaflet": "latest",
     "rollup": "^2.3.4",

@@ -9,6 +9,7 @@
     import iconUrl from 'leaflet/dist/images/marker-icon.png';
     import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
+    export let theme;
     let map;
     const dispatch = createEventDispatcher();
 
@@ -35,16 +36,23 @@
 </script>
 
 
-<div class="leaflet-map" use:createLeaflet>
+<div class="leaflet-map" use:createLeaflet class:invert-colors={theme != "white"}>
     {#if map}
         <slot {map}/>
     {/if}
 </div>
 
 <style type="text/css">
-    .leaflet-map {
+    .invert-colors {
         filter: brightness(1) invert(1) contrast(1) hue-rotate(200deg) saturate(1);
-        width: 100%;
-        height: calc(100vh - 40px);
     }
+    .leaflet-map {
+        width: 100%;
+        height: calc(100vh - 40px - 3rem);
+    }
+    :global(.leaflet-div-icon) {
+         background: rgba(0,0,0,0) !important;
+         border: rgba(0,0,0,0) !important;
+    }
+
 </style>

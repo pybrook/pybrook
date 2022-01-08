@@ -14,6 +14,9 @@
         Modal,
         Row
     } from "carbon-components-svelte";
+    import Light24 from "carbon-icons-svelte/lib/Light24"
+
+    import Moon24 from "carbon-icons-svelte/lib/Moon24"
 
     let vehicles = {}
     let groups = {};
@@ -66,8 +69,7 @@
     )
 
     let theme = "white"; // "white" | "g10" | "g80" | "g90" | "g100"
-
-    $: document.documentElement.setAttribute("theme", "g100");
+    $: document.documentElement.setAttribute("theme", theme);
 
 
     let modalOpen = false;
@@ -76,11 +78,19 @@
 
     $: tooManyVehicles = vehiclesInViewPort.length > 100
 </script>
+<nav>
+    <h4 class="navbar-brand">PyBrook</h4>
+    {#if theme != "white"}
+        <Light24 style="cursor:pointer;" on:click={() => theme = "white"}/>
+    {:else}
+        <Moon24 style="cursor:pointer;" on:click={() => theme = "g100"}/>
+    {/if}
+</nav>
 <Grid fullWidth>
 
     <Row>
         <Column padding xs={4} sm={4} md={8} lg={8} xlg={12}>
-            <LeafletMap let:map={map} on:moveend={({detail}) => {
+            <LeafletMap let:map={map} theme={theme} on:moveend={({detail}) => {
                 bounds = detail.bounds;
             }}>
                 {#if !tooManyVehicles}
@@ -106,7 +116,7 @@
                                         subtitle="Please zoom in to show vehicle positions" hideCloseButton/>
                 </div>
             {/if}
-            <div style={tooManyVehicles ? `overflow-y: auto;max-height: calc(100vh - ${notificationHeight}px - 80px);`: "overflow-y: auto;max-height: calc(100vh - 40px);" }>
+            <div style={tooManyVehicles ? `overflow-y: auto;max-height: calc(100vh - ${notificationHeight}px - 80px - 3rem);`: "overflow-y: auto;max-height: calc(100vh - 40px - 3rem);" }>
                 <Accordion>
                     {#each Array.from(groupKeys).sort() as group (group)}
                         <AccordionItem title="{group}" bind:open={openGroups[group]}>
@@ -146,14 +156,17 @@
     </Accordion>
 </Modal>
 <style>
-    .bordered-tile {
-        border-bottom: 1px solid #aaa;
+    .navbar-brand {
+        font-weight: bold;
+        flex-grow: 1;
+    }
+    nav {
+        padding-left: 2rem;
+        padding-right: 2rem;
+        display: flex;
+        align-items: center;
+        height: 3rem;
+        border-bottom: 1px solid white;
     }
 
-    #move-btn {
-        position: absolute;
-        z-index: 1000;
-        bottom: 50px;
-        left: 20px;
-    }
 </style>
