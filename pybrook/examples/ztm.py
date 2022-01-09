@@ -29,6 +29,7 @@ class LocationReport(OutReport):
     longitude = ReportField(ZTMReport.longitude)
     line = ReportField(ZTMReport.line)
     time = ReportField(ZTMReport.time)
+    brigade = ReportField(ZTMReport.brigade)
 
 
 @brook.artificial_field('course')
@@ -46,12 +47,11 @@ class CourseReport(OutReport):
     lat = ReportField(ZTMReport.latitude)
     lon = ReportField(ZTMReport.longitude)
     time = ReportField(ZTMReport.time)
-    brigade = ReportField(ZTMReport.brigade)
 
 
 brook.set_meta(latitude_field=LocationReport.latitude,
                longitude_field=LocationReport.longitude,
-               group_field=CourseReport.brigade,
+               group_field=LocationReport.line,
                time_field=LocationReport.time)
 
 if __name__ == '__main__':

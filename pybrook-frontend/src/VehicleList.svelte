@@ -13,7 +13,6 @@
             groups = {};
             groupKeys = new Set();
         }
-
     }
     const unsubscribe = genericReportStore.subscribe((data) => {
         if (!data || !data.data.group) return;

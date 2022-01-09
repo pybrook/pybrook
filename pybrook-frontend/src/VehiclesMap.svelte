@@ -2,7 +2,7 @@
 
     import LeafletMap from "./LeafletMap.svelte";
     import VehicleMarker from "./VehicleMarker.svelte";
-    import {genericReportStore} from "./stores";
+    import {configStore, genericReportStore} from "./stores";
     import {createEventDispatcher, onDestroy} from "svelte";
     import {InlineNotification} from "carbon-components-svelte";
 
@@ -15,11 +15,24 @@
     let mapNotificationHeight;
     let selected;
     const dispatch = createEventDispatcher();
-    const unsubscribe = genericReportStore.subscribe((data) => {
-        if (!data) return;
-        let {vehicleId, data: {group, longitude, latitude}} = data;
-        vehicleIdToGroup[vehicleId] = group;
-        vehiclePositions[vehicleId] = {lat: latitude, lon: longitude};
+
+    $: {
+        if ($configStore) {
+            vehicleIdToGroup = {};
+            vehiclePositions = new Set();
+            selected = null;
+            vehiclesInViewPort = [];
+        }
+    }
+    const unsubscribe = genericReportStore.subscribe((msg) => {
+        if (!msg) return;
+        let {vehicleId, data} = msg;
+        if(data.group) {
+            vehicleIdToGroup[vehicleId] = data.group;
+        }
+        if(data.latitude && data.longitude){
+            vehiclePositions[vehicleId] = {lat: data.latitude, lon: data.longitude};
+        }
     });
     onDestroy(unsubscribe);
 
