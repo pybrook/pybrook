@@ -26,6 +26,7 @@
     let theme = darkModeQuery.matches ? "g100" : "white"; // "white" | "g10" | "g80" | "g90" | "g100"
     $: document.documentElement.setAttribute("theme", theme);
     let modalOpen = false;
+    let modalInTransition = false;
     let modalVehicleId = undefined;
     let tooManyVehicles = false;
 </script>
@@ -50,8 +51,9 @@
         </Column>
     </Row>
 </Grid>
-<VehicleDetailModal open={modalOpen} on:close={() => modalOpen = false} vehicleId={modalVehicleId}/>
-
+{#if modalOpen || modalInTransition}
+    <VehicleDetailModal open={modalOpen} on:transitionend={() => modalInTransition = false} on:close={() => {modalOpen = false; modalInTransition = true; }} vehicleId={modalVehicleId}/>
+{/if}
 <style>
     .navbar-brand {
         font-weight: bold;

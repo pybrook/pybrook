@@ -14,6 +14,9 @@
         if(!vehicleId) return;
         if ($latestReports.hasOwnProperty(vehicleId)){
             modalData = $latestReports[vehicleId];
+            let latestData = modalData[$configStore.time_field.stream_name];
+            latestTime = latestData.originalMessageTime;
+            latestMessageId = latestData.messageId;
         } else {
             modalData = {}
         }
@@ -22,24 +25,19 @@
     const unsubscribe = reportStore.subscribe((data) => {
         if(!data) return;
         if(vehicleId == data.vehicleId)
-        modalData[data.streamName] = data.report;
+            modalData[data.streamName] = data.report;
     })
     let latestTime;
     let latestMessageId;
     let now = new Date();
 
-    $: {
-        if($configStore && modalData.hasOwnProperty($configStore.time_field.stream_name)){
-            let latestData = modalData[$configStore.time_field.stream_name];
-            latestTime = latestData.originalMessageTime;
-            latestMessageId = latestData.messageId;
-        }
-    }
     const interval = setInterval(() => now = new Date(), 100);
     onDestroy(() => {unsubscribe(); clearInterval(interval)});
-    $: setLatest(vehicleId);
+    $: $configStore && setLatest(vehicleId) && modalData;
     function onClose(){
         dispatch('close');
+        latestMessageId = null;
+        latestTime = null;
     }
 </script>
 <Modal
@@ -65,11 +63,11 @@
                             {:else}
                                 {#if modalData[stream_name].messageId === latestMessageId}
                                     <div style="color:green">
-                                        Based on latest report, {(now - new Date(modalData[stream_name].originalMessageTime)) / 1000} seconds old
+                                        Based on latest report (id: {latestMessageId}), which is {(now - new Date(latestTime)) / 1000} seconds old
                                     </div>
                                 {:else}
                                     <div style="color:orange">
-                                        {(now - new Date(modalData[stream_name].originalMessageTime)) / 1000} seconds behind the latest report
+                                        {(now - new Date(latestTime)) / 1000} seconds behind the latest report (id: ({latestMessageId})
                                     </div>
                                 {/if}
                             {/if}
