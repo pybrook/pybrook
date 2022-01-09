@@ -69,7 +69,7 @@
                                     </div>
                                 {:else}
                                     <div style="color:orange">
-                                        {(new Date() - new Date(modalData[stream_name].originalMessageTime)) / 1000} seconds behind the latest report
+                                        {(now - new Date(modalData[stream_name].originalMessageTime)) / 1000} seconds behind the latest report
                                     </div>
                                 {/if}
                             {/if}

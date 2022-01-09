@@ -1,6 +1,8 @@
 import asyncio
 from datetime import datetime
+from typing import Optional
 
+import aioredis
 from pydantic import Field
 
 from pybrook.models import InReport, OutReport, PyBrook, ReportField, Dependency
@@ -29,14 +31,17 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field('course')
-async def course(lat: float = Dependency(ZTMReport.latitude)) -> float:
-    await asyncio.sleep(2)
-    return lat+1
+async def stop(lat: float = Dependency(ZTMReport.latitude),
+               lon: float = Dependency(ZTMReport.longitude),
+               redis: aioredis.Redis = Dependency(aioredis.Redis)) -> Optional[str]:
+    stop_names = await redis.georadius('stops', lat, lon, 50, unit='m', count=1)
+
+    return stop_names[0] if stop_names else None
 
 
 @brook.output('course-report')
 class CourseReport(OutReport):
-    course_id = ReportField(course)
+    stop_name = ReportField(stop)
 
 
 brook.set_meta(latitude_field=LocationReport.latitude,

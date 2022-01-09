@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Callable, Dict, List, Type
+from typing import Callable, Dict, List, Type, Union
 
 import aioredis
 import pydantic
@@ -28,10 +28,12 @@ class BaseFieldGenerator(BaseStreamConsumer):
                  namespace: str = ARTIFICIAL_NAMESPACE,
                  dependency_stream: str,
                  dependencies: List[Dependency],
+                 pass_redis: List[str] = None,
                  read_chunk_length: int = 100):
         self.generator = generator
         self.dependencies = dependencies
         self.field_name = field_name
+        self.pass_redis = pass_redis or []
         self.output_stream_name = f'{SPECIAL_CHAR}{namespace}{SPECIAL_CHAR}{field_name}'
         pydantic_fields = {
             dep.name: (dep.value_type, pydantic.Field())
@@ -46,6 +48,12 @@ class BaseFieldGenerator(BaseStreamConsumer):
                          input_streams=[dependency_stream],
                          read_chunk_length=read_chunk_length)
 
+    def call_generator(self, dependencies, redis_conn: Union[aioredis.Redis, redis.Redis]):
+        if self.pass_redis:
+            return self.generator(**dependencies, **{k: redis_conn for k in self.pass_redis})
+        else:
+            return self.generator(**dependencies)
+
 
 class AsyncFieldGenerator(AsyncStreamConsumer, BaseFieldGenerator):
     async def process_message_async(
@@ -54,7 +62,7 @@ class AsyncFieldGenerator(AsyncStreamConsumer, BaseFieldGenerator):
             pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         message_id = message.pop(MSG_ID_FIELD)
         dependencies = self.dep_model(**message).dict()
-        value = await self.generator(**dependencies)
+        value = await self.call_generator(dependencies, redis_conn)
         return {
             self.output_stream_name:
             redisable_encoder({
@@ -71,7 +79,7 @@ class SyncFieldGenerator(SyncStreamConsumer, BaseFieldGenerator):
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         message_id = message.pop(MSG_ID_FIELD)
         dependencies = self.dep_model(**message).dict()
-        value = self.generator(**dependencies)
+        value = self.call_generator(dependencies, redis_conn)
         return {
             self.output_stream_name:
             redisable_encoder({

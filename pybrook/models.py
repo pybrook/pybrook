@@ -8,6 +8,7 @@ from typing import (  # noqa: WPS235
 import aioredis
 import fastapi
 import pydantic
+import redis
 from starlette.middleware.cors import CORSMiddleware
 
 from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
@@ -37,15 +38,24 @@ class RouteGenerator:
 
 
 class Dependency:
-    def __init__(self, src_field: 'SourceField'):
-        if not isinstance(src_field, SourceField):
-            raise ValueError(f'{src_field} is not an instance of SourceField')
-        self.src_field = src_field
+    def __init__(self, src: Union['SourceField']):
+        self.is_aioredis = type(src) == type and issubclass(src, aioredis.Redis)
+        self.is_redis = type(src) == type and issubclass(src, redis.Redis)
+        if isinstance(src, SourceField):
+            self.src_field = src
+        elif self.is_aioredis or self.is_redis:
+            self.src_field = None
+        else:
+            raise ValueError(f'{src} is not an instance of SourceField or a Redis class')
 
     def cast(self, value: str):
         return self.src_field.value_type(value)
 
     def __repr__(self):
+        if self.is_aioredis:
+            return '<Dependency aioredis>'
+        if self.is_redis:
+            return '<Dependency redis>'
         return f'<Dependency src_field={self.src_field}>'
 
 
@@ -318,7 +328,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
             for arg_name, arg in self.args.parameters.items()
         }
         if not all(
-                isinstance(d, Dependency) for d in self.dependencies.values()):
+                isinstance(d, Dependency) for k, d in self.dependencies.items()):
             raise RuntimeError(
                 f'Artificial field "{self.field_name}" has default values'
                 f' which do not subclass Dependency.')
@@ -337,7 +347,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
                     src_stream=dep.src_field.stream_name,
                     src_key=dep.src_field.field_name,
                     dst_key=dep_key)
-                for dep_key, dep in self.dependencies.items()
+                for dep_key, dep in self.dependencies.items() if dep.src_field
             ],
             resolver_name=f'{self.field_name}')
         model.add_consumer(dependency_resolver)
@@ -345,7 +355,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
         field_generator_deps = [
             BaseFieldGenerator.Dependency(name=dep_name,
                                           value_type=dep.src_field.value_type)
-            for dep_name, dep in self.dependencies.items()
+            for dep_name, dep in self.dependencies.items() if dep.src_field
         ]
 
         generator_class = AsyncFieldGenerator if self.is_coro else SyncFieldGenerator
@@ -355,7 +365,8 @@ class ArtificialField(SourceField, ConsumerGenerator):
             dependency_stream=dependency_resolver.output_stream_name,
             field_name=self.field_name,
             generator=self.calculate,
-            dependencies=field_generator_deps)
+            dependencies=field_generator_deps,
+            pass_redis=[k for k, d in self.dependencies.items() if d.is_aioredis if self.is_coro or d.is_redis])
 
         model.add_consumer(field_generator)
 
