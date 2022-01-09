@@ -5,6 +5,9 @@ description = ""
 authors = ["Michał Rokita <mrokita@mrokita.pl>"]
 readme = "README.md"
 
+[tool.poetry.scripts]
+pybrook = "pybrook.__main__:main"
+
 [tool.poetry.dependencies]
 python = "^3.7"
 aioredis = {extras = ["hiredis"], version = "^2.0.0"}
@@ -17,6 +20,7 @@ Pillow = "^8.4.0"
 pandoc-crossref = "^0.1.1"
 gunicorn = "^20.1.0"
 httpx = "^0.21.1"
+watchdog = "^2.1.6"
 
 [tool.poetry.dev-dependencies]
 # docs
