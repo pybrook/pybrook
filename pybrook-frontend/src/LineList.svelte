@@ -1,6 +1,6 @@
 <script>
     import {ClickableTile} from "carbon-components-svelte";
-    import reportStore from "./reportStore";
+    import reportStore from "./stores";
     let vehicles = {};
     reportStore.subscribe(
         (value) => {
@@ -8,6 +8,7 @@
                 vehicles[value["vehicle_id"]] = value
         }
     )
+    let vehicleEntries;
     $: vehicleEntries = Object.entries(vehicles);
 </script>
 {#each vehicleEntries as [vehicleId, report]}

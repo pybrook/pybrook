@@ -4,7 +4,7 @@ import aioredis
 import redis
 from loguru import logger
 
-from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
+from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
 from pybrook.consumers.base import (
     AsyncStreamConsumer,
     BaseStreamConsumer,
@@ -31,16 +31,16 @@ class BaseSplitter(BaseStreamConsumer):
 
     def split_msg(self, message: Dict[str, str], *, obj_id: str,
                   obj_msg_id: str):
-        message_id = f'{obj_id}{FIELD_PREFIX}{obj_msg_id}'
+        message_id = f'{obj_id}{SPECIAL_CHAR}{obj_msg_id}'
         return {
-            f'{FIELD_PREFIX}{self.namespace}{FIELD_PREFIX}split': {
+            f'{SPECIAL_CHAR}{self.namespace}{SPECIAL_CHAR}split': {
                 MSG_ID_FIELD: message_id,
                 **message
             }
         }
 
     def get_obj_msg_id_key(self, obj_id: str):
-        return f'{FIELD_PREFIX}id{FIELD_PREFIX}{obj_id}'
+        return f'{SPECIAL_CHAR}id{SPECIAL_CHAR}{obj_id}'
 
 
 class AsyncSplitter(AsyncStreamConsumer, BaseSplitter):
@@ -73,7 +73,7 @@ def process_message(msg):
     obj_id = message["{self.object_id_field}"]
     msg_id_key = f'{self.get_obj_msg_id_key("{obj_id}")}'
     obj_msg_id = execute("INCR", msg_id_key)
-    out_stream = '{FIELD_PREFIX}{self.namespace}{FIELD_PREFIX}split'
+    out_stream = '{SPECIAL_CHAR}{self.namespace}{SPECIAL_CHAR}split'
     message["{MSG_ID_FIELD}"] = f'{{obj_id}}:{{obj_msg_id}}'
     execute("XADD", out_stream, '*', *chain(*message.items()))
 

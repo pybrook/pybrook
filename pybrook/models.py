@@ -1,24 +1,16 @@
 import dataclasses
 import inspect
 from typing import (  # noqa: WPS235
-    Any,
-    AsyncIterator,
-    Callable,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    get_type_hints,
+    Any, AsyncIterator, Callable, Dict, Generic, List, Optional, Type, TypeVar,
+    Union, get_type_hints,
 )
 
 import aioredis
 import fastapi
 import pydantic
+from starlette.middleware.cors import CORSMiddleware
 
-from pybrook.config import FIELD_PREFIX
+from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
 from pybrook.consumers.base import BaseStreamConsumer
 from pybrook.consumers.dependency_resolver import DependencyResolver
 from pybrook.consumers.field_generator import (
@@ -28,8 +20,8 @@ from pybrook.consumers.field_generator import (
 )
 from pybrook.consumers.splitter import GearsSplitter
 from pybrook.consumers.worker import WorkerManager
-from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 from pybrook.encoding import redisable_encoder
+from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
 
 class ConsumerGenerator:
@@ -46,6 +38,8 @@ class RouteGenerator:
 
 class Dependency:
     def __init__(self, src_field: 'SourceField'):
+        if not isinstance(src_field, SourceField):
+            raise ValueError(f'{src_field} is not an instance of SourceField')
         self.src_field = src_field
 
     def cast(self, value: str):
@@ -89,9 +83,9 @@ class SourceField:
     @property  # type: ignore
     def stream_name(self) -> str:
         if self.source_obj:
-            return f'{FIELD_PREFIX}{self.source_obj._options.name}{FIELD_PREFIX}split'
+            return f'{SPECIAL_CHAR}{self.source_obj._options.name}{SPECIAL_CHAR}split'
         else:
-            return f'{FIELD_PREFIX}artificial{FIELD_PREFIX}{self.field_name}'
+            return f'{SPECIAL_CHAR}artificial{SPECIAL_CHAR}{self.field_name}'
 
     def __repr__(self):
         return f'<{self.__class__.__name__} name={self.field_name},' \
@@ -106,7 +100,7 @@ class InReportOptions:
 
     @property
     def stream_name(self):
-        return f'{FIELD_PREFIX}{self.name}'
+        return f'{SPECIAL_CHAR}{self.name}'
 
 
 TOPT = TypeVar('TOPT')
@@ -175,7 +169,7 @@ class OutReportOptions:
 
     @property
     def stream_name(self):
-        return f'{FIELD_PREFIX}{self.name}'
+        return f'{SPECIAL_CHAR}{self.name}'
 
 
 class OutReportMeta(OptionsMixin[OutReportOptions], type):
@@ -200,6 +194,13 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
             (report_field.source_field.value_type, pydantic.Field())
             for report_field in cls.report_fields  # type: ignore
         }
+        pydantic_fields[MSG_ID_FIELD] = (
+            str,
+            pydantic.Field(
+                title='Message ID',
+                description=
+                f'Message id - {{object ID}}{SPECIAL_CHAR}{{msg index for object}}'
+            ))
         if not hasattr(cls, '_model'):
             cls._model: Type[pydantic.BaseModel] = pydantic.create_model(
                 cls.__name__ + 'Model',
@@ -222,8 +223,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
             name=f'Retrieve {cls._options.name}')
         async def get_report(redis: aioredis.Redis = redis_dep):
             for msg_id, msg_body in (await
-                                     redis.xrevrange(cls._options.stream_name
-                                                     )):
+                                     redis.xrevrange(cls._options.stream_name,
+                                                     count=1)):
                 return model_cls(**msg_body)
             return {}
 
@@ -242,7 +243,10 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                         last_msg, payload = m_data
                         await websocket.send_text(model_cls(**payload).json())
 
-        api.schema.streams.append(StreamInfo(stream_name=cls._options.stream_name, websocket_path=f'/{cls._options.name}'))
+        api.schema.streams.append(
+            StreamInfo(stream_name=cls._options.stream_name,
+                       websocket_path=f'/{cls._options.name}',
+                       report_schema=cls.model.schema()))
 
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
@@ -301,8 +305,12 @@ class InputField(SourceField):
 class ArtificialField(SourceField, ConsumerGenerator):
     def __init__(self, calculate: Callable, name: str = None):
         annotations = get_type_hints(calculate)
+        try:
+            value_type = annotations.pop('return')
+        except KeyError:
+            raise ValueError(f'Please specify return value for {calculate.__name__}')
         super().__init__(field_name=(name or calculate.__name__),
-                         value_type=annotations.pop('return'))
+                         value_type=value_type)
         self.args: inspect.Signature = inspect.signature(calculate)
         self.is_coro: bool = inspect.iscoroutinefunction(calculate)
         self.dependencies: Dict[str, Dependency] = {
@@ -323,7 +331,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
         dependency_resolver = DependencyResolver(
             redis_url=model.redis_url,
             output_stream_name=
-            f'{FIELD_PREFIX}{self.field_name}{FIELD_PREFIX}deps',
+            f'{SPECIAL_CHAR}{self.field_name}{SPECIAL_CHAR}deps',
             dependencies=[
                 DependencyResolver.Dependency(
                     src_stream=dep.src_field.stream_name,
@@ -362,6 +370,11 @@ class PyBrookApi:
         self.fastapi = fastapi.FastAPI()
         self.brook = brook
         self.schema = PyBrookSchema()
+        self.fastapi.add_middleware(CORSMiddleware,
+                                    allow_credentials=True,
+                                    allow_origins=['*'],
+                                    allow_methods=["*"],
+                                    allow_headers=["*"])
 
         @self.fastapi.get('/pybrook-schema.json', response_model=PyBrookSchema)
         def get_schema():
@@ -382,7 +395,9 @@ class PyBrookApi:
 
 
 class PyBrook:
-    def __init__(self, redis_url: str, api_class: Type[PyBrookApi] = PyBrookApi):
+    def __init__(self,
+                 redis_url: str,
+                 api_class: Type[PyBrookApi] = PyBrookApi):
         self.inputs: Dict[str, Type[InReport]] = {}
         self.outputs: Dict[str, Type[OutReport]] = {}
         self.artificial_fields: Dict[str, ArtificialField] = {}
@@ -402,10 +417,11 @@ class PyBrook:
                          field_name=field.destination_field_name)
 
     def set_meta(self, *, latitude_field: ReportField,
-                 longitude_field: ReportField, group_field: ReportField):
+                 longitude_field: ReportField, group_field: ReportField, time_field: ReportField):
         self.api.schema.latitude_field = self._gen_field_info(latitude_field)
         self.api.schema.longitude_field = self._gen_field_info(longitude_field)
         self.api.schema.group_field = self._gen_field_info(group_field)
+        self.api.schema.time_field = self._gen_field_info(time_field)
 
     def input(
             self,  # noqa: A003

@@ -1,11 +1,14 @@
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 
 from pydantic import BaseModel
+
+from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
 
 
 class StreamInfo(BaseModel):
     stream_name: str
     websocket_path: str
+    report_schema: Dict[Any, Any]
 
 
 class FieldInfo(BaseModel):
@@ -15,6 +18,9 @@ class FieldInfo(BaseModel):
 
 class PyBrookSchema(BaseModel):
     streams: List[StreamInfo] = []
+    special_char: str = SPECIAL_CHAR
+    msg_id_field: str = MSG_ID_FIELD
     latitude_field: Optional[FieldInfo] = None
     longitude_field: Optional[FieldInfo] = None
+    time_field: Optional[FieldInfo] = None
     group_field: Optional[FieldInfo] = None

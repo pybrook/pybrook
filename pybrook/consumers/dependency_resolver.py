@@ -3,7 +3,7 @@ from typing import Dict, List
 
 import redis
 
-from pybrook.config import FIELD_PREFIX, MSG_ID_FIELD
+from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
 from pybrook.consumers.base import SyncStreamConsumer
 
 
@@ -37,7 +37,7 @@ class DependencyResolver(SyncStreamConsumer):
         self._num_dependencies = len(dependencies)
         self._resolver_name = resolver_name
         if not output_stream_name:
-            output_stream_name = f'{FIELD_PREFIX}{self._resolver_name}{FIELD_PREFIX}deps'
+            output_stream_name = f'{SPECIAL_CHAR}{self._resolver_name}{SPECIAL_CHAR}deps'
         self.output_stream_name: str = output_stream_name
         input_streams = list(set(s.src_stream for s in dependencies))
         super().__init__(redis_url=redis_url,
@@ -50,7 +50,7 @@ class DependencyResolver(SyncStreamConsumer):
                f' input_streams={self.input_streams}, dependencies={self._dependencies}>'
 
     def dependency_map_key(self, message_id: str):
-        return f'{FIELD_PREFIX}depmap{self.output_stream_name}{FIELD_PREFIX}{message_id}'
+        return f'{SPECIAL_CHAR}depmap{self.output_stream_name}{SPECIAL_CHAR}{message_id}'
 
     def process_message_sync(
             self, stream_name: str, message: Dict[str, str], *,
@@ -58,7 +58,7 @@ class DependencyResolver(SyncStreamConsumer):
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         message_id = message.pop(MSG_ID_FIELD)
         dep_key = self.dependency_map_key(message_id)
-        incr_key = dep_key + f'{FIELD_PREFIX}incr'
+        incr_key = dep_key + f'{SPECIAL_CHAR}incr'
         new_deps = {
             k.dst_key: message[k.src_key]
             for k in self._dependencies if k.src_key in message

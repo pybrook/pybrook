@@ -5,7 +5,7 @@ import aioredis
 import pydantic
 import redis
 
-from pybrook.config import ARTIFICIAL_NAMESPACE, FIELD_PREFIX, MSG_ID_FIELD
+from pybrook.config import ARTIFICIAL_NAMESPACE, MSG_ID_FIELD, SPECIAL_CHAR
 from pybrook.consumers.base import (
     AsyncStreamConsumer,
     BaseStreamConsumer,
@@ -32,7 +32,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
         self.generator = generator
         self.dependencies = dependencies
         self.field_name = field_name
-        self.output_stream_name = f'{FIELD_PREFIX}{namespace}{FIELD_PREFIX}{field_name}'
+        self.output_stream_name = f'{SPECIAL_CHAR}{namespace}{SPECIAL_CHAR}{field_name}'
         pydantic_fields = {
             dep.name: (dep.value_type, pydantic.Field())
             for dep in dependencies

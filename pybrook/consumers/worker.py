@@ -41,7 +41,7 @@ class Worker:
         policy = asyncio.get_event_loop_policy()
         asyncio.set_event_loop(policy.new_event_loop())
         coroutines = [
-            self._consumer.run_async()   # type: ignore
+            self._consumer.run_async()  # type: ignore
             for _ in range(coroutines_num)
         ]
         try:

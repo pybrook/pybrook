@@ -11,6 +11,7 @@
 
     export let theme;
     let map;
+    let tileLayer;
     const dispatch = createEventDispatcher();
 
     function createLeaflet(node) {
@@ -23,7 +24,7 @@
         map.on('moveend', function(e) {
             dispatch('moveend', {bounds: map.getBounds()})
         });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
         return {
@@ -33,18 +34,25 @@
             },
         };
     }
+    $: {
+        if(map && theme !== 'white'){
+            document.querySelectorAll('.leaflet-map-pane, .leaflet-control').forEach((e) => e.className += ' invert-colors');
+        } else if (map) {
+            document.querySelectorAll('.leaflet-map-pane, .leaflet-control').forEach((e) => e.className = e.className.replace(' invert-colors', ''));
+        }
+    }
 </script>
 
-
-<div class="leaflet-map" use:createLeaflet class:invert-colors={theme != "white"}>
+<div class="leaflet-map" use:createLeaflet>
+    <slot name="notification"></slot>
     {#if map}
-        <slot {map}/>
+        <slot {map} {theme}/>
     {/if}
 </div>
 
 <style type="text/css">
-    .invert-colors {
-        filter: brightness(1) invert(1) contrast(1) hue-rotate(200deg) saturate(1);
+    :global(.invert-colors) {
+        filter: invert(1) hue-rotate(180deg) !important;
     }
     .leaflet-map {
         width: 100%;
