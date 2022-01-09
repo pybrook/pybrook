@@ -2,14 +2,21 @@
 
     import {Accordion, AccordionItem, Link, ListItem, UnorderedList} from "carbon-components-svelte";
     import {createEventDispatcher, onDestroy} from "svelte";
-    import {genericReportStore} from "./stores";
+    import {configStore, genericReportStore} from "./stores";
 
     let groupKeys = new Set();
     let groups = {};
     const dispatch = createEventDispatcher()
     let openGroups = {}
+    $: {
+        if ($configStore) {
+            groups = {};
+            groupKeys = new Set();
+        }
+
+    }
     const unsubscribe = genericReportStore.subscribe((data) => {
-        if (!data) return;
+        if (!data || !data.data.group) return;
         let {vehicleId, data: {group}} = data;
         if(!groupKeys.has(group)){
             groupKeys = groupKeys.add(group)

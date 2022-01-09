@@ -45,11 +45,13 @@ class CourseReport(OutReport):
     stop_name = ReportField(stop)
     lat = ReportField(ZTMReport.latitude)
     lon = ReportField(ZTMReport.longitude)
+    time = ReportField(ZTMReport.time)
+    brigade = ReportField(ZTMReport.brigade)
 
 
 brook.set_meta(latitude_field=LocationReport.latitude,
                longitude_field=LocationReport.longitude,
-               group_field=LocationReport.line,
+               group_field=CourseReport.brigade,
                time_field=LocationReport.time)
 
 if __name__ == '__main__':

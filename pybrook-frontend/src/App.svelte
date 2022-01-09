@@ -19,8 +19,6 @@
     import VehiclesMap from "./VehiclesMap.svelte";
     import VehicleDetailModal from "./VehicleDetailModal.svelte";
 
-    let vehicles = {}
-    let groups = {};
     let notificationHeight;
     const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
     let theme = darkModeQuery.matches ? "g100" : "white"; // "white" | "g10" | "g80" | "g90" | "g100"
