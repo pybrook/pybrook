@@ -14,6 +14,7 @@ configStore.subscribe((config) => {
     if(!config) return;
     console.log("Received new config!", config)
     webSockets.forEach((s) => s.close())
+    let closed=false;
     let messageTimes = {};
     let {latitude_field, time_field, longitude_field, group_field, special_char, msg_id_field} = config;
     config.streams.forEach(({stream_name, websocket_path}) => {
@@ -53,9 +54,18 @@ configStore.subscribe((config) => {
             if(useTime) genericData.time = originalMessageTime;
             genericReportStore.set({vehicleId, vehicleMessageId, messageId, data: genericData});
         })
+        socket.addEventListener('close', (data) => {
+            if(closed) return;
+            closed = true;
+            loadConfig();
+        });
     })
+
 });
 
 
-fetch(`${apiHttpUrl}/pybrook-schema.json`).then(res=>res.json()).then((json) => configStore.set(json))
+function loadConfig() {
+    fetch(`${apiHttpUrl}/pybrook-schema.json`).then(res => res.json()).then((json) => configStore.set(json)).catch((err) => setTimeout(loadConfig, 1000))
+}
 
+loadConfig();

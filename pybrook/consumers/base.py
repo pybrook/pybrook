@@ -6,6 +6,7 @@ from typing import Dict, Iterable, Mapping, Set, Tuple
 
 import aioredis
 import redis
+from loguru import logger
 
 CONSUMER_NAME_LENGTH = 64
 
@@ -59,6 +60,7 @@ class BaseStreamConsumer:
                     raise e  # pragma: nocover
 
     def stop(self, signum=None, frame=None):
+        logger.info(f'Closing {self}')
         self.active = False
 
     @property

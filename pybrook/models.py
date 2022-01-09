@@ -1,5 +1,8 @@
+import asyncio
 import dataclasses
 import inspect
+import signal
+from time import time
 from typing import (  # noqa: WPS235
     Any, AsyncIterator, Callable, Dict, Generic, List, Optional, Type, TypeVar,
     Union, get_type_hints,
@@ -9,7 +12,9 @@ import aioredis
 import fastapi
 import pydantic
 import redis
+from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
+from websockets.exceptions import ConnectionClosedOK
 
 from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
 from pybrook.consumers.base import BaseStreamConsumer
@@ -238,20 +243,49 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                 return model_cls(**msg_body)
             return {}
 
+        @api.fastapi.on_event('startup')
+        def startup():
+            api.fastapi.state.socket_active = True
+            signal.signal(signal.SIGINT, shutdown)
+            signal.signal(signal.SIGTERM, shutdown)
+
+        def shutdown(*args):
+            logger.info('set socket active to false')
+            api.fastapi.state.socket_active = False
+
         @api.fastapi.websocket(f'/{cls._options.name}')
         async def read_reports(websocket: fastapi.WebSocket,
                                redis: aioredis.Redis = redis_dep):
             await websocket.accept()
             last_msg = '$'
             stream_name = cls._options.stream_name
-            while True:
+            active = True
+            last_ping = time()
+            while active and api.fastapi.state.socket_active:
+                if time() - last_ping > 30:
+                    try:
+                        # Check if connection is active
+                        await asyncio.wait_for(websocket.receive_bytes(), timeout=0.01)
+                        last_ping = time()
+                    except asyncio.TimeoutError:
+                        pass
+                    except (fastapi.WebSocketDisconnect, AssertionError):
+                        active = False
                 if messages := await redis.xread({stream_name: last_msg},
                                                  count=100,
                                                  block=100):
                     # Wiadomości w strumieniach są mapami
                     for m_data in dict(messages)[stream_name]:
                         last_msg, payload = m_data
-                        await websocket.send_text(model_cls(**payload).json())
+                        try:
+                            await websocket.send_text(model_cls(**payload).json())
+                        except ConnectionClosedOK:
+                            active = False
+            try:
+                await websocket.close()
+                logger.info(f'WebSocket connection closed by server')
+            except RuntimeError:
+                logger.info(f'WebSocket connection closed by client')
 
         api.schema.streams.append(
             StreamInfo(stream_name=cls._options.stream_name,
@@ -415,13 +449,20 @@ class PyBrook:
         self.consumers: List[BaseStreamConsumer] = []
         self.redis_url: str = redis_url
         self.api: PyBrookApi = api_class(self)
+        self.manager = None
 
     @property
     def app(self) -> fastapi.FastAPI:
         return self.api.fastapi
 
     def run(self):
-        WorkerManager(self.consumers).run()
+        self.manager = WorkerManager(self.consumers)
+        self.manager.run()
+
+    def terminate(self):
+        if not self.manager:
+            raise RuntimeError('PyBrook is not running!')
+        self.manager.terminate()
 
     def _gen_field_info(self, field: ReportField) -> FieldInfo:
         return FieldInfo(stream_name=field.destination_stream_name,

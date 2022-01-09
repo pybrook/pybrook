@@ -1,4 +1,6 @@
 from datetime import datetime
+from threading import Thread
+from time import sleep
 from typing import Optional
 
 import aioredis
@@ -41,6 +43,8 @@ async def stop(lat: float = Dependency(ZTMReport.latitude),
 @brook.output('course-report')
 class CourseReport(OutReport):
     stop_name = ReportField(stop)
+    lat = ReportField(ZTMReport.latitude)
+    lon = ReportField(ZTMReport.longitude)
 
 
 brook.set_meta(latitude_field=LocationReport.latitude,

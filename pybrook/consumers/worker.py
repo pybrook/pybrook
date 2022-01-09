@@ -79,9 +79,15 @@ class Worker:
 class WorkerManager:
     def __init__(self, consumers: Iterable[BaseStreamConsumer]):
         self.consumers = consumers
+        self.processes = []
+
+    def terminate(self):
+        for p in self.processes:
+            p.terminate()
 
     def run(self):
-        processes = []
+        if self.processes:
+            raise RuntimeError('Already running!')
         gears_consumers: Mapping[str,
                                  List[GearsStreamConsumer]] = defaultdict(list)
         for c in self.consumers:
@@ -96,7 +102,7 @@ class WorkerManager:
                 procs = w.run_async(processes_num=8, coroutines_num=8)
             else:
                 raise NotImplementedError(c)
-            processes.extend(procs)
+            self.processes.extend(procs)
         for redis_url, consumers in dict(gears_consumers).items():
             redis = Redis.from_url(redis_url,
                                    decode_responses=True,
@@ -117,8 +123,9 @@ class WorkerManager:
             for c in consumers:
                 c.register_builder(redis)
             redis.delete('RG.REGISTERLOCK')
-        for proc in processes:
+        for proc in self.processes:
             try:
                 proc.join()
             except KeyboardInterrupt:
                 print('\nShutting down.')
+        self.processes = []
