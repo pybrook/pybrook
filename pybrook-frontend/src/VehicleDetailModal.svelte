@@ -36,8 +36,11 @@
     $: $configStore && setLatest(vehicleId) && modalData && open;
     function onClose(){
         dispatch('close');
+    }
+    function clearData(){
         latestMessageId = null;
         latestTime = null;
+        modalData = {};
     }
 </script>
 <Modal
@@ -45,10 +48,11 @@
         open="{open}"
         modalHeading="Vehicle {vehicleId}"
         primaryButtonText="Close"
+        on:transitionend={clearData}
         on:close={onClose}
         on:submit={onClose}
 >
-    {#if $configStore && vehicleId && open}
+    {#if $configStore && vehicleId}
         <Accordion>
             {#each $configStore.streams as {stream_name, report_schema: {properties}} (stream_name)}
                 <AccordionItem open>

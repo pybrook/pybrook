@@ -49,9 +49,7 @@
         </Column>
     </Row>
 </Grid>
-{#if modalOpen || modalInTransition}
-    <VehicleDetailModal open={modalOpen} on:transitionend={() => modalInTransition = false} on:close={() => {modalOpen = false; modalInTransition = true; }} vehicleId={modalVehicleId}/>
-{/if}
+<VehicleDetailModal open={modalOpen} on:transitionend={() => modalInTransition = false} on:close={() => {modalOpen = false; modalInTransition = true; }} vehicleId={modalVehicleId}/>
 <style>
     .navbar-brand {
         font-weight: bold;
