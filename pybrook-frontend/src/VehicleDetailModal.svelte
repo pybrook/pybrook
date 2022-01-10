@@ -9,6 +9,7 @@
     const dispatch = createEventDispatcher();
     export let open;
     export let vehicleId;
+    let openStreamAccordions = {};
     let modalData = {};
     function setLatest(vehicleId){
         if(!vehicleId) return;
@@ -55,7 +56,7 @@
     {#if $configStore && vehicleId}
         <Accordion>
             {#each $configStore.streams as {stream_name, report_schema: {properties}} (stream_name)}
-                <AccordionItem open>
+                <AccordionItem>
                     <div slot="title">
                         {stream_name}
 
