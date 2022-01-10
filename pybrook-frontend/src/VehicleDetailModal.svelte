@@ -33,7 +33,7 @@
 
     const interval = setInterval(() => now = new Date(), 100);
     onDestroy(() => {unsubscribe(); clearInterval(interval)});
-    $: $configStore && setLatest(vehicleId) && modalData;
+    $: $configStore && setLatest(vehicleId) && modalData && open;
     function onClose(){
         dispatch('close');
         latestMessageId = null;
