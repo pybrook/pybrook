@@ -32,7 +32,7 @@ class LocationReport(OutReport):
     brigade = ReportField(ZTMReport.brigade)
 
 
-@brook.artificial_field('course')
+@brook.artificial_field('stop3')
 async def stop(lat: float = Dependency(ZTMReport.latitude),
                lon: float = Dependency(ZTMReport.longitude),
                redis: aioredis.Redis = Dependency(aioredis.Redis)) -> Optional[str]:
@@ -41,7 +41,7 @@ async def stop(lat: float = Dependency(ZTMReport.latitude),
     return stop_names[0] if stop_names else None
 
 
-@brook.output('course-report')
+@brook.output('course-report3')
 class CourseReport(OutReport):
     stop_name = ReportField(stop)
     lat = ReportField(ZTMReport.latitude)

@@ -2,7 +2,7 @@ import asyncio
 import secrets
 import signal
 from enum import Enum
-from typing import Dict, Iterable, Mapping, Set, Tuple
+from typing import Dict, Iterable, Set, Tuple, MutableMapping
 
 import aioredis
 import redis
@@ -72,7 +72,7 @@ class BaseStreamConsumer:
         self._active = value
 
     @property
-    def _xreadgroup_params(self) -> Mapping:
+    def _xreadgroup_params(self) -> MutableMapping:
         consumer_name = secrets.token_urlsafe(CONSUMER_NAME_LENGTH)
         return {
             'streams': {s: '>'
@@ -147,12 +147,18 @@ class AsyncStreamConsumer(BaseStreamConsumer):
         while self.active:
             response = await redis_conn.xreadgroup(**xreadgroup_params)
             for stream, messages in response:
+                tasks = []
                 for msg_id, payload in messages:
                     # TODO: Add a configurable limit
-                    asyncio.create_task(
+                    tasks.append(asyncio.create_task(
                         self._handle_message(stream, msg_id, payload,
-                                             redis_conn))
-
+                                             redis_conn)))
+                for num, task in enumerate(asyncio.as_completed(tasks)):
+                    await task
+                    if num > self._read_chunk_length / 2:
+                        num = len((await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED))[0])
+                        xreadgroup_params['count'] = self._read_chunk_length - len(tasks) + num
+                        break
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
 
