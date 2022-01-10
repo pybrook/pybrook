@@ -1,15 +1,9 @@
 <script>
-    import LeafletMap from './LeafletMap.svelte';
-    import VehicleMarker from './VehicleMarker.svelte';
     import 'carbon-components-svelte/css/all.css';
-    import {reportStore, genericReportStore} from './stores.js';
 
     import {
-        Accordion,
-        AccordionItem,
         Column,
-        Grid, InlineNotification,
-        Modal,
+        Grid,
         Row
     } from "carbon-components-svelte";
     import Light24 from "carbon-icons-svelte/lib/Light24"
