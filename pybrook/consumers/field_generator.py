@@ -48,9 +48,12 @@ class BaseFieldGenerator(BaseStreamConsumer):
                          input_streams=[dependency_stream],
                          read_chunk_length=read_chunk_length)
 
-    def call_generator(self, dependencies, redis_conn: Union[aioredis.Redis, redis.Redis]):
+    def call_generator(self, dependencies, redis_conn: Union[aioredis.Redis,
+                                                             redis.Redis]):
         if self.pass_redis:
-            return self.generator(**dependencies, **{k: redis_conn for k in self.pass_redis})
+            return self.generator(**dependencies,
+                                  **{k: redis_conn
+                                     for k in self.pass_redis})
         else:
             return self.generator(**dependencies)
 

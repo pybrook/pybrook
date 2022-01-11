@@ -1,11 +1,13 @@
+import asyncio
 from datetime import datetime
+from time import sleep
 from typing import Optional
 
 import aioredis
+import redis
 from pydantic import Field
 
-from pybrook.models import InReport, OutReport, PyBrook, ReportField, Dependency
-import redis
+from pybrook.models import Dependency, InReport, OutReport, PyBrook, ReportField
 
 brook = PyBrook('redis://localhost')
 app = brook.app
@@ -32,10 +34,17 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field('stop3')
-def stop(lat: float = Dependency(ZTMReport.latitude),
-         lon: float = Dependency(ZTMReport.longitude),
-         redis_conn: redis.Redis = Dependency(redis.Redis)) -> Optional[str]:
-    stop_names = redis_conn.georadius('stops', lat, lon, 50, unit='m', count=1)  # type: ignore
+async def stop(lat: float = Dependency(ZTMReport.latitude),
+               lon: float = Dependency(ZTMReport.longitude),
+               redis_conn: aioredis.Redis = Dependency(
+                   aioredis.Redis)) -> Optional[str]:
+    await asyncio.sleep(10)
+    stop_names = await redis_conn.georadius('stops',
+                                            lat,
+                                            lon,
+                                            50,
+                                            unit='m',
+                                            count=1)  # type: ignore
 
     return stop_names[0] if stop_names else None
 

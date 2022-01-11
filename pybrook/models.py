@@ -44,14 +44,16 @@ class RouteGenerator:
 
 class Dependency:
     def __init__(self, src: Union['SourceField', aioredis.Redis, redis.Redis]):
-        self.is_aioredis = type(src) == type and issubclass(src, aioredis.Redis)
+        self.is_aioredis = type(src) == type and issubclass(
+            src, aioredis.Redis)
         self.is_redis = type(src) == type and issubclass(src, redis.Redis)
         if isinstance(src, SourceField):
             self.src_field = src
         elif self.is_aioredis or self.is_redis:
             self.src_field = None
         else:
-            raise ValueError(f'{src} is not an instance of SourceField or a Redis class')
+            raise ValueError(
+                f'{src} is not an instance of SourceField or a Redis class')
 
     def cast(self, value: str):
         return self.src_field.value_type(value)
@@ -265,7 +267,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                 if time() - last_ping > 30:
                     try:
                         # Check if connection is active
-                        await asyncio.wait_for(websocket.receive_bytes(), timeout=0.01)
+                        await asyncio.wait_for(websocket.receive_bytes(),
+                                               timeout=0.01)
                         last_ping = time()
                     except asyncio.TimeoutError:
                         pass
@@ -278,7 +281,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                     for m_data in dict(messages)[stream_name]:
                         last_msg, payload = m_data
                         try:
-                            await websocket.send_text(model_cls(**payload).json())
+                            await websocket.send_text(
+                                model_cls(**payload).json())
                         except ConnectionClosedOK:
                             active = False
             try:
@@ -352,7 +356,8 @@ class ArtificialField(SourceField, ConsumerGenerator):
         try:
             value_type = annotations.pop('return')
         except KeyError:
-            raise ValueError(f'Please specify return value for {calculate.__name__}')
+            raise ValueError(
+                f'Please specify return value for {calculate.__name__}')
         super().__init__(field_name=(name or calculate.__name__),
                          value_type=value_type)
         self.args: inspect.Signature = inspect.signature(calculate)
@@ -362,7 +367,8 @@ class ArtificialField(SourceField, ConsumerGenerator):
             for arg_name, arg in self.args.parameters.items()
         }
         if not all(
-                isinstance(d, Dependency) for k, d in self.dependencies.items()):
+                isinstance(d, Dependency)
+                for k, d in self.dependencies.items()):
             raise RuntimeError(
                 f'Artificial field "{self.field_name}" has default values'
                 f' which do not subclass Dependency.')
@@ -400,7 +406,10 @@ class ArtificialField(SourceField, ConsumerGenerator):
             field_name=self.field_name,
             generator=self.calculate,
             dependencies=field_generator_deps,
-            pass_redis=[k for k, d in self.dependencies.items() if (d.is_aioredis and self.is_coro) or d.is_redis])
+            pass_redis=[
+                k for k, d in self.dependencies.items()
+                if (d.is_aioredis and self.is_coro) or d.is_redis
+            ])
 
         model.add_consumer(field_generator)
 
@@ -469,7 +478,8 @@ class PyBrook:
                          field_name=field.destination_field_name)
 
     def set_meta(self, *, latitude_field: ReportField,
-                 longitude_field: ReportField, group_field: ReportField, time_field: ReportField):
+                 longitude_field: ReportField, group_field: ReportField,
+                 time_field: ReportField):
         self.api.schema.latitude_field = self._gen_field_info(latitude_field)
         self.api.schema.longitude_field = self._gen_field_info(longitude_field)
         self.api.schema.group_field = self._gen_field_info(group_field)

@@ -3,8 +3,8 @@ from importlib import import_module, reload
 from multiprocessing import Process
 
 from loguru import logger
-from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 
 class ModelChangeEventHandler(FileSystemEventHandler):
