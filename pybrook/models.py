@@ -43,7 +43,7 @@ class RouteGenerator:
 
 
 class Dependency:
-    def __init__(self, src: Union['SourceField']):
+    def __init__(self, src: Union['SourceField', aioredis.Redis, redis.Redis]):
         self.is_aioredis = type(src) == type and issubclass(src, aioredis.Redis)
         self.is_redis = type(src) == type and issubclass(src, redis.Redis)
         if isinstance(src, SourceField):
@@ -400,7 +400,7 @@ class ArtificialField(SourceField, ConsumerGenerator):
             field_name=self.field_name,
             generator=self.calculate,
             dependencies=field_generator_deps,
-            pass_redis=[k for k, d in self.dependencies.items() if d.is_aioredis if self.is_coro or d.is_redis])
+            pass_redis=[k for k, d in self.dependencies.items() if (d.is_aioredis and self.is_coro) or d.is_redis])
 
         model.add_consumer(field_generator)
 

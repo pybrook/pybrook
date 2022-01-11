@@ -79,7 +79,7 @@ class Worker:
 class WorkerManager:
     def __init__(self, consumers: Iterable[BaseStreamConsumer]):
         self.consumers = consumers
-        self.processes = []
+        self.processes: List[multiprocessing.Process] = []
 
     def terminate(self):
         for p in self.processes:

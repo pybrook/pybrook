@@ -2,11 +2,12 @@ import asyncio
 import secrets
 import signal
 from enum import Enum
-from typing import Dict, Iterable, Set, Tuple, MutableMapping
+from typing import Dict, Iterable, Set, Tuple, MutableMapping, List
 
 import aioredis
 import redis
 from loguru import logger
+from concurrent import futures
 
 CONSUMER_NAME_LENGTH = 64
 
@@ -105,23 +106,34 @@ class SyncStreamConsumer(BaseStreamConsumer):
                                                  decode_responses=True)
         self._active = True
         xreadgroup_params = self._xreadgroup_params
+        executor = futures.ThreadPoolExecutor(max_workers=16)  # TODO: Parametrize max_workers
         while self.active:
             response = redis_conn.xreadgroup(**xreadgroup_params)
+            tasks: List[futures.Future] = []
             for stream, messages in response:
                 for msg_id, payload in messages:
-                    with redis_conn.pipeline() as p:
-                        result = self.process_message_sync(
-                            stream, payload, redis_conn=redis_conn, pipeline=p)
-                        for out_stream, out_msg in result.items():
-                            p.xadd(out_stream, out_msg)
-                        p.xack(stream, self._consumer_group_name, msg_id)
-                        try:
-                            p.execute()
-                        except redis.WatchError:  # pragma: nocover
-                            redis_conn.xack(stream, self._consumer_group_name,
-                                            msg_id)
+                    tasks.append(executor.submit(self._handle_message_sync, stream, msg_id, payload, redis_conn))
+                for num, task in enumerate(futures.as_completed(tasks)):
+                    task.result()
+                    if num > self._read_chunk_length / 2:
+                        num = len((futures.wait(tasks, return_when=asyncio.FIRST_COMPLETED))[0])
+                        xreadgroup_params['count'] = self._read_chunk_length - len(tasks) + num
+                        break
         redis_conn.close()
         redis_conn.connection_pool.disconnect()
+
+    def _handle_message_sync(self, stream: str, msg_id: str, payload: Dict[str, str], redis_conn: redis.Redis):
+        with redis_conn.pipeline() as p:
+            result = self.process_message_sync(
+                stream, payload, redis_conn=redis_conn, pipeline=p)
+            for out_stream, out_msg in result.items():
+                p.xadd(out_stream, out_msg)
+            p.xack(stream, self._consumer_group_name, msg_id)
+            try:
+                p.execute()
+            except redis.WatchError:  # pragma: nocover
+                redis_conn.xack(stream, self._consumer_group_name,
+                                msg_id)
 
 
 class AsyncStreamConsumer(BaseStreamConsumer):
@@ -146,23 +158,22 @@ class AsyncStreamConsumer(BaseStreamConsumer):
         xreadgroup_params = self._xreadgroup_params
         while self.active:
             response = await redis_conn.xreadgroup(**xreadgroup_params)
+            tasks = []
             for stream, messages in response:
-                tasks = []
                 for msg_id, payload in messages:
-                    # TODO: Add a configurable limit
                     tasks.append(asyncio.create_task(
-                        self._handle_message(stream, msg_id, payload,
+                        self._handle_message_async(stream, msg_id, payload,
                                              redis_conn)))
-                for num, task in enumerate(asyncio.as_completed(tasks)):
-                    await task
-                    if num > self._read_chunk_length / 2:
-                        num = len((await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED))[0])
-                        xreadgroup_params['count'] = self._read_chunk_length - len(tasks) + num
-                        break
+            for num, task in enumerate(asyncio.as_completed(tasks)):
+                await task
+                if num > self._read_chunk_length / 2:
+                    num = len((await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED))[0])
+                    xreadgroup_params['count'] = self._read_chunk_length - len(tasks) + num
+                    break
         await redis_conn.close()
         await redis_conn.connection_pool.disconnect()
 
-    async def _handle_message(self, stream: str, msg_id: str,
+    async def _handle_message_async(self, stream: str, msg_id: str,
                               payload: Dict[str,
                                             str], redis_conn: aioredis.Redis):
         async with redis_conn.pipeline() as p:
