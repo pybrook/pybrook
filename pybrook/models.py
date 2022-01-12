@@ -4,8 +4,17 @@ import inspect
 import signal
 from time import time
 from typing import (  # noqa: WPS235
-    Any, AsyncIterator, Callable, Dict, Generic, List, Optional, Type, TypeVar,
-    Union, get_type_hints,
+    Any,
+    AsyncIterator,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_type_hints,
 )
 
 import aioredis

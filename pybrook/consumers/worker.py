@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing
+import signal
 from collections import defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Tuple, Union
 
@@ -49,6 +50,11 @@ class Worker:
                 asyncio.gather(*coroutines))
         except KeyboardInterrupt:
             pass
+        except RuntimeError as e:
+            # Probably something didn't clean up
+            raise e
+        except asyncio.CancelledError:
+            ...  # This is fine, shouldn't break anything
 
     def _spawn_async(self, *, processes_num: int,
                      coroutines_num: int) -> Iterable[multiprocessing.Process]:
@@ -80,16 +86,25 @@ class WorkerManager:
     def __init__(self, consumers: Iterable[BaseStreamConsumer]):
         self.consumers = consumers
         self.processes: List[multiprocessing.Process] = []
+        self._kill_on_terminate = False
 
     def terminate(self):
-        for p in self.processes:
-            p.terminate()
+        if self._kill_on_terminate:
+            for p in self.processes:
+                p.kill()
+        else:
+            for p in self.processes:
+                p.terminate()
+            self._kill_on_terminate = True
 
     def run(self):
         if self.processes:
             raise RuntimeError('Already running!')
         gears_consumers: Mapping[str,
                                  List[GearsStreamConsumer]] = defaultdict(list)
+        signal.signal(signal.SIGINT, lambda *args: self.terminate)
+        signal.signal(signal.SIGTERM, lambda *args: self.terminate)
+
         for c in self.consumers:
             if isinstance(c, GearsStreamConsumer):
                 gears_consumers[c._redis_url].append(c)
@@ -127,5 +142,5 @@ class WorkerManager:
             try:
                 proc.join()
             except KeyboardInterrupt:
-                print('\nShutting down.')
+                pass
         self.processes = []

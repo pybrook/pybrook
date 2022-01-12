@@ -33,20 +33,11 @@ class LocationReport(OutReport):
     brigade = ReportField(ZTMReport.brigade)
 
 
-@brook.artificial_field('stop3')
-async def stop(lat: float = Dependency(ZTMReport.latitude),
-               lon: float = Dependency(ZTMReport.longitude),
-               redis_conn: aioredis.Redis = Dependency(
-                   aioredis.Redis)) -> Optional[str]:
-    await asyncio.sleep(10)
-    stop_names = await redis_conn.georadius('stops',
-                                            lat,
-                                            lon,
-                                            50,
-                                            unit='m',
-                                            count=1)  # type: ignore
-
-    return stop_names[0] if stop_names else None
+@brook.artificial_field('stop')
+def stop(lat: float = Dependency(ZTMReport.latitude),
+               lon: float = Dependency(ZTMReport.longitude)) -> Optional[str]:
+    sleep(5)
+    return 0
 
 
 @brook.output('course-report3')

@@ -1,6 +1,7 @@
 import asyncio
 import secrets
 import signal
+import sys
 from concurrent import futures
 from enum import Enum
 from typing import Dict, Iterable, List, MutableMapping, Set, Tuple
@@ -61,8 +62,16 @@ class BaseStreamConsumer:
                     raise e  # pragma: nocover
 
     def stop(self, signum=None, frame=None):
-        logger.info(f'Closing {self}')
-        self.active = False
+        if not self._active:
+            logger.warning(f'Killing {self}')
+            sys.exit()
+        else:
+            logger.info(f'Terminating {self}')
+            self.active = False
+
+    def register_signals(self):
+        signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
 
     @property
     def active(self):
@@ -98,35 +107,44 @@ class SyncStreamConsumer(BaseStreamConsumer):
     def supported_impl(self) -> Set[ConsumerImpl]:
         return super().supported_impl | {ConsumerImpl.SYNC}
 
+    def stop(self, signum=None, frame=None):
+        super().stop(signum, frame)
+        self.executor.shutdown(wait=False, cancel_futures=False)
+        if self.executor._work_queue.qsize():
+            logger.warning('Waiting for all futures to finish, use Ctrl + C to force exit.')
+
     def run_sync(self):
-        signal.signal(signal.SIGTERM, self.stop)
-        signal.signal(signal.SIGINT, self.stop)
+        self.register_signals()
         redis_conn: redis.Redis = redis.from_url(self._redis_url,
                                                  encoding='utf-8',
                                                  decode_responses=True)
         self._active = True
         xreadgroup_params = self._xreadgroup_params
-        executor = futures.ThreadPoolExecutor(
-            max_workers=16)  # TODO: Parametrize max_workers
+        self.executor = futures.ThreadPoolExecutor(
+            max_workers=self._read_chunk_length)  # TODO: Parametrize max_workers
+        tasks: Set[futures.Future] = set()
         while self.active:
             response = redis_conn.xreadgroup(**xreadgroup_params)
-            tasks: List[futures.Future] = []
             for stream, messages in response:
                 for msg_id, payload in messages:
-                    tasks.append(
-                        executor.submit(self._handle_message_sync, stream,
-                                        msg_id, payload, redis_conn))
+                    try:
+                        tasks.add(
+                        self.executor.submit(self._handle_message_sync, stream,
+                        msg_id, payload, redis_conn))
+                    except RuntimeError as e:
+                        if self.active:
+                            raise e
+                        else:
+                            return
+
                 for num, task in enumerate(futures.as_completed(tasks)):
                     task.result()
-                    if num > self._read_chunk_length / 2:
-                        num = len((futures.wait(
-                            tasks, return_when=asyncio.FIRST_COMPLETED))[0])
+                    if num > self._read_chunk_length / 2 or not self.active:
+                        done, tasks = futures.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                         xreadgroup_params[
-                            'count'] = self._read_chunk_length - len(
-                                tasks) + num
+                            'count'] = self._read_chunk_length - len(tasks)
                         break
         redis_conn.close()
-        redis_conn.connection_pool.disconnect()
 
     def _handle_message_sync(self, stream: str, msg_id: str,
                              payload: Dict[str, str], redis_conn: redis.Redis):
@@ -157,34 +175,33 @@ class AsyncStreamConsumer(BaseStreamConsumer):
     def supported_impl(self) -> Set[ConsumerImpl]:
         return super().supported_impl | {ConsumerImpl.ASYNC}
 
+    def stop(self, signum=None, frame=None):
+        super().stop(signum, frame)
+        if len(asyncio.all_tasks()):
+            logger.info('Waiting for all asyncio tasks to finish, use Ctrl + C to force exit.')
+
     async def run_async(self):  # noqa: WPS217
-        signal.signal(signal.SIGTERM, self.stop)
-        signal.signal(signal.SIGINT, self.stop)
+        self.register_signals()
         redis_conn: aioredis.Redis = await aioredis.from_url(
             self._redis_url, encoding='utf-8', decode_responses=True)
         self.active = True
         xreadgroup_params = self._xreadgroup_params
+        tasks: Set[asyncio.Future] = set()
         while self.active:
             response = await redis_conn.xreadgroup(**xreadgroup_params)
-            tasks = []
             for stream, messages in response:
                 for msg_id, payload in messages:
-                    tasks.append(
+                    tasks.add(
                         asyncio.create_task(
                             self._handle_message_async(stream, msg_id, payload,
                                                        redis_conn)))
             for num, task in enumerate(asyncio.as_completed(tasks)):
                 await task
-                if num > self._read_chunk_length / 2:
-                    num = len(
-                        (await
-                         asyncio.wait(tasks,
-                                      return_when=asyncio.FIRST_COMPLETED))[0])
-                    xreadgroup_params['count'] = self._read_chunk_length - len(
-                        tasks) + num
+                if num > self._read_chunk_length / 2 or not self.active:
+                    done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                    xreadgroup_params['count'] = self._read_chunk_length - len(tasks)
                     break
         await redis_conn.close()
-        await redis_conn.connection_pool.disconnect()
 
     async def _handle_message_async(self, stream: str, msg_id: str,
                                     payload: Dict[str, str],
