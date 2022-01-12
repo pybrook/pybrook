@@ -10,7 +10,7 @@ from pybrook.encoding import redisable_value_decoder
 
 class DependencyResolver(SyncStreamConsumer):
     @dataclasses.dataclass
-    class Dependency:
+    class Dep:
         src_stream: str
         src_key: str
         dst_key: str
@@ -21,7 +21,7 @@ class DependencyResolver(SyncStreamConsumer):
                  redis_url: str,
                  resolver_name: str,
                  output_stream_name: str = None,
-                 dependencies: List[Dependency],
+                 dependencies: List[Dep],
                  read_chunk_length: int = 100):
         """
 
@@ -35,7 +35,7 @@ class DependencyResolver(SyncStreamConsumer):
                 for the specific field.
             read_chunk_length: Redis XACK COUNT arg
         """
-        self._dependencies: List[DependencyResolver.Dependency] = dependencies
+        self._dependencies: List[DependencyResolver.Dep] = dependencies
         self._num_dependencies = len(dependencies)
         self._resolver_name = resolver_name
         if not output_stream_name:

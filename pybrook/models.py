@@ -66,15 +66,10 @@ class Dependency:
         return f'<Dependency src_field={self.src_field}>'
 
 
-def dependency(src_field: Union['SourceField', Any]) -> Any:
-    if not isinstance(src_field, SourceField):
-        raise RuntimeError(f'{src_field} is not a SourceField')
-    return Dependency(src_field)
-
-
 class HistoricalDependency(Dependency):
-    def __init__(self, src_field: Any, num: int):
+    def __init__(self, src_field: 'SourceField', history_length: int):
         super().__init__(src_field)
+        self.src_field.enable_history(history_length)
 
 
 class SourceField:
@@ -96,6 +91,14 @@ class SourceField:
         self.field_name: str = field_name
         self.source_obj: Optional[Type[InReport]] = source_obj
         self.value_type: Type = value_type
+        self._history_len: int = 0
+
+    @property
+    def history_len(self):
+        return self._history_len
+
+    def enable_history(self, history_len: int):
+        self._history_len = max(self._history_len, history_len)
 
     @property  # type: ignore
     def stream_name(self) -> str:
@@ -104,10 +107,16 @@ class SourceField:
         else:
             return f'{SPECIAL_CHAR}artificial{SPECIAL_CHAR}{self.field_name}'
 
+    @property
+    def history_name(self) -> str:
+        """Archive Sorted Set Key."""
+        return f'{self.stream_name}{SPECIAL_CHAR}ARCHIVE'
+
     def __repr__(self):
         return f'<{self.__class__.__name__} name={self.field_name},' \
                f' report_class={self.source_obj.__name__},' \
-               f' value_type={self.value_type.__name__}>'
+               f' value_type={self.value_type.__name__},' \
+               f' history_len={self.history_len}>'
 
 
 @dataclasses.dataclass
@@ -140,6 +149,7 @@ class OptionsMixin(Generic[TOPT]):
 class InReportMeta(OptionsMixin[InReportOptions],
                    pydantic.main.ModelMetaclass):
     _options: InReportOptions
+    _input_fields: Dict[str, 'InputField']
 
     def _validate_options(self, options: InReportOptions) -> InReportOptions:
         try:
@@ -150,9 +160,16 @@ class InReportMeta(OptionsMixin[InReportOptions],
                 f'has no attribute "{options.id_field}".') from None
         return options
 
+    def __new__(mcs, name, bases, namespace):
+        cls = super().__new__(mcs, name, bases, namespace)
+        cls._input_fields = dict()
+        for name, field in cls.__fields__.items():
+            cls._input_fields[name] = InputField(cls, field)  # type: ignore
+        return cls
+
     def __getattr__(cls, item: str) -> SourceField:  # noqa: N805
-        if item in cls.__fields__ and not item.startswith('_'):  # type: ignore
-            return InputField(cls, cls.__fields__[item])  # type: ignore
+        if not item.startswith('_') and item in cls._input_fields:
+            return cls._input_fields[item]
         return super().__getattribute__(item)  # noqa: WPS613
 
 
@@ -302,7 +319,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
             redis_url=model.redis_url,
             output_stream_name=cls._options.stream_name,
             dependencies=[
-                DependencyResolver.Dependency(
+                DependencyResolver.Dep(
                     src_stream=field.source_field.stream_name,
                     src_key=field.source_field.field_name,
                     dst_key=field.destination_field_name)
@@ -383,10 +400,9 @@ class ArtificialField(SourceField, ConsumerGenerator):
             output_stream_name=
             f'{SPECIAL_CHAR}{self.field_name}{SPECIAL_CHAR}deps',
             dependencies=[
-                DependencyResolver.Dependency(
-                    src_stream=dep.src_field.stream_name,
-                    src_key=dep.src_field.field_name,
-                    dst_key=dep_key)
+                DependencyResolver.Dep(src_stream=dep.src_field.stream_name,
+                                       src_key=dep.src_field.field_name,
+                                       dst_key=dep_key)
                 for dep_key, dep in self.dependencies.items() if dep.src_field
             ],
             resolver_name=f'{self.field_name}')

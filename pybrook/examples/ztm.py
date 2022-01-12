@@ -7,7 +7,14 @@ import aioredis
 import redis
 from pydantic import Field
 
-from pybrook.models import Dependency, InReport, OutReport, PyBrook, ReportField
+from pybrook.models import (
+    Dependency,
+    HistoricalDependency,
+    InReport,
+    OutReport,
+    PyBrook,
+    ReportField,
+)
 
 brook = PyBrook('redis://localhost')
 app = brook.app
@@ -34,9 +41,9 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field('stop')
-async def stop(lat: float = Dependency(ZTMReport.latitude),
-               lon: float = Dependency(
-                   ZTMReport.longitude)) -> Optional[List[str]]:
+async def stop(lat: float = HistoricalDependency(ZTMReport.longitude, history_length=4),
+               lon: float = HistoricalDependency(
+                   ZTMReport.longitude, history_length=5)) -> Optional[List[str]]:
     await asyncio.sleep(6)
     return [1, 2, 3]
 
@@ -52,6 +59,3 @@ brook.set_meta(latitude_field=LocationReport.latitude,
                longitude_field=LocationReport.longitude,
                group_field=LocationReport.line,
                time_field=LocationReport.time)
-
-if __name__ == '__main__':
-    brook.run()
