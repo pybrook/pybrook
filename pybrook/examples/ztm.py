@@ -34,13 +34,13 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field('stop')
-def stop(lat: float = Dependency(ZTMReport.latitude),
+async def stop(lat: float = Dependency(ZTMReport.latitude),
                lon: float = Dependency(ZTMReport.longitude)) -> Optional[str]:
-    sleep(5)
+    await asyncio.sleep(6)
     return 0
 
 
-@brook.output('course-report3')
+@brook.output('course-report')
 class CourseReport(OutReport):
     stop_name = ReportField(stop)
     lat = ReportField(ZTMReport.latitude)

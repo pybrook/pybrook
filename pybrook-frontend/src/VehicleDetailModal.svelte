@@ -6,41 +6,47 @@
         Modal, SkeletonText,
     } from "carbon-components-svelte";
     import {createEventDispatcher, onDestroy} from "svelte";
+    import ReportTimeElapsed from "./ReportTimeElapsed.svelte";
+
     const dispatch = createEventDispatcher();
     export let open;
     export let vehicleId;
     let openStreamAccordions = {};
     let modalData = {};
-    function setLatest(vehicleId){
-        if(!vehicleId) return;
-        if ($latestReports.hasOwnProperty(vehicleId)){
+
+    function setLatest(vehicleId) {
+        if (!vehicleId) return;
+        if ($latestReports.hasOwnProperty(vehicleId)) {
             modalData = $latestReports[vehicleId];
             let latestData = modalData[$configStore.time_field.stream_name];
             latestTime = latestData.originalMessageTime;
             latestMessageId = latestData.messageId;
+            latestVehicleMessageId = latestData.vehicleMessageId
         } else {
             modalData = {}
         }
     }
 
     const unsubscribe = reportStore.subscribe((data) => {
-        if(!data) return;
-        if(vehicleId == data.vehicleId)
+        if (!data) return;
+        if (vehicleId == data.vehicleId)
             modalData[data.streamName] = data.report;
     })
     let latestTime;
     let latestMessageId;
-    let now = new Date();
+    let latestVehicleMessageId;
 
-    const interval = setInterval(() => now = new Date(), 100);
-    onDestroy(() => {unsubscribe(); clearInterval(interval)});
+    onDestroy(unsubscribe);
     $: $configStore && setLatest(vehicleId) && modalData && open;
-    function onClose(){
+
+    function onClose() {
         dispatch('close');
     }
-    function clearData(){
+
+    function clearData() {
         latestMessageId = null;
         latestTime = null;
+        latestVehicleMessageId = null;
         modalData = {};
     }
 </script>
@@ -61,31 +67,20 @@
                         {stream_name}
 
                         {#if modalData.hasOwnProperty(stream_name)}
-                            {#if $configStore.time_field.stream_name === stream_name}
-                                <div style="color:green">
-                                    Latest report, {(now - new Date(modalData[stream_name].originalMessageTime)) / 1000} seconds old
-                                </div>
-                            {:else}
-                                {#if modalData[stream_name].messageId === latestMessageId}
-                                    <div style="color:green">
-                                        Based on latest report (id: {latestMessageId}), which is {(now - new Date(latestTime)) / 1000} seconds old
-                                    </div>
-                                {:else}
-                                    <div style="color:orange">
-                                        {(now - new Date(latestTime)) / 1000} seconds behind the latest report (id: ({latestMessageId})
-                                    </div>
-                                {/if}
-                            {/if}
+                            <ReportTimeElapsed streamData={modalData[stream_name]}
+                                               latestMessageId={latestMessageId}
+                                               latestTime={latestTime}
+                                               latestVehicleMessageId={latestVehicleMessageId}/>
                         {/if}
                     </div>
-                        {#each Object.entries(properties) as [key, {title}] (key)}
-                            <h5>{title}</h5>
-                            {#if modalData.hasOwnProperty(stream_name)}
-                                {modalData[stream_name].report[key]}
-                            {:else}
-                                <SkeletonText/>
-                            {/if}
-                        {/each}
+                    {#each Object.entries(properties) as [key, {title}] (key)}
+                        <h5>{title}</h5>
+                        {#if modalData.hasOwnProperty(stream_name)}
+                            {modalData[stream_name].report[key]}
+                        {:else}
+                            <SkeletonText/>
+                        {/if}
+                    {/each}
                 </AccordionItem>
             {/each}
         </Accordion>

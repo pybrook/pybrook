@@ -9,13 +9,13 @@ const apiUrl = 'localhost:8000';
 const apiWsUrl = `ws://${apiUrl}`;
 const apiHttpUrl = `http://${apiUrl}`;
 let webSockets = []
+export let messageTimes = {};
 
 configStore.subscribe((config) => {
     if(!config) return;
     console.log("Received new config!", config)
     webSockets.forEach((s) => s.close())
     let closed=false;
-    let messageTimes = {};
     let {latitude_field, time_field, longitude_field, group_field, special_char, msg_id_field} = config;
     config.streams.forEach(({stream_name, websocket_path}) => {
         let socket = new WebSocket(`${apiWsUrl}${websocket_path}`)
