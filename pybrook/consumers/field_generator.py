@@ -11,7 +11,7 @@ from pybrook.consumers.base import (
     BaseStreamConsumer,
     SyncStreamConsumer,
 )
-from pybrook.encoding import redisable_encoder
+from pybrook.encoding import redisable_encoder, redisable_decoder
 
 
 class BaseFieldGenerator(BaseStreamConsumer):
@@ -63,6 +63,7 @@ class AsyncFieldGenerator(AsyncStreamConsumer, BaseFieldGenerator):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: aioredis.Redis,
             pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+        message = redisable_decoder(message)
         message_id = message.pop(MSG_ID_FIELD)
         dependencies = self.dep_model(**message).dict()
         value = await self.call_generator(dependencies, redis_conn)
@@ -80,6 +81,7 @@ class SyncFieldGenerator(SyncStreamConsumer, BaseFieldGenerator):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
+        message = redisable_decoder(message)
         message_id = message.pop(MSG_ID_FIELD)
         dependencies = self.dep_model(**message).dict()
         value = self.call_generator(dependencies, redis_conn)

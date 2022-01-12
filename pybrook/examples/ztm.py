@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from time import sleep
-from typing import Optional
+from typing import Optional, List
 
 import aioredis
 import redis
@@ -35,47 +35,16 @@ class LocationReport(OutReport):
 
 @brook.artificial_field('stop')
 async def stop(lat: float = Dependency(ZTMReport.latitude),
-               lon: float = Dependency(ZTMReport.longitude)) -> Optional[str]:
+               lon: float = Dependency(ZTMReport.longitude)) -> Optional[List[str]]:
     await asyncio.sleep(6)
-    return 0
+    return [1, 2, 3]
 
 
-@brook.output('course-report123')
-class CourseReport(OutReport):
-    stop_name = ReportField(stop)
-    lat = ReportField(ZTMReport.latitude)
-    lon = ReportField(ZTMReport.longitude)
-    time = ReportField(ZTMReport.time)
-
-
-@brook.output('test-report')
-class TestReport(OutReport):
-    test = ReportField(stop)
-
-
-@brook.output('pos-report')
+@brook.output('raport2')
 class PosReport(OutReport):
     lat = ReportField(ZTMReport.latitude)
-    lon = ReportField(ZTMReport.longitude)
-
-
-@brook.output('posx-report')
-class PosReport(OutReport):
-    lat = ReportField(ZTMReport.latitude)
-    lon = ReportField(ZTMReport.longitude)
-
-
-@brook.output('posx3-report')
-class PosReport(OutReport):
-    lat = ReportField(ZTMReport.latitude)
-    lon = ReportField(ZTMReport.longitude)
-
-
-@brook.output('lel-report')
-class PosReport(OutReport):
-    lat = ReportField(ZTMReport.latitude)
-    lon = ReportField(ZTMReport.longitude)
-    line = ReportField(ZTMReport.line)
+    long = ReportField(ZTMReport.longitude)
+    stop = ReportField(stop)
 
 
 brook.set_meta(latitude_field=LocationReport.latitude,

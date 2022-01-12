@@ -5,6 +5,7 @@ import redis
 
 from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
 from pybrook.consumers.base import SyncStreamConsumer
+from pybrook.encoding import redisable_value_decoder
 
 
 class DependencyResolver(SyncStreamConsumer):
@@ -13,6 +14,7 @@ class DependencyResolver(SyncStreamConsumer):
         src_stream: str
         src_key: str
         dst_key: str
+        history_length: int = 0
 
     def __init__(self,
                  *,
@@ -56,7 +58,8 @@ class DependencyResolver(SyncStreamConsumer):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        message_id = message.pop(MSG_ID_FIELD)
+        message_id_enc = message.pop(MSG_ID_FIELD)
+        message_id = redisable_value_decoder(message_id_enc)
         dep_key = self.dependency_map_key(message_id)
         incr_key = dep_key + f'{SPECIAL_CHAR}incr'
         new_deps = {
@@ -74,7 +77,7 @@ class DependencyResolver(SyncStreamConsumer):
             pipeline.delete(dep_key, incr_key)
             return {
                 self.output_stream_name: {
-                    MSG_ID_FIELD: message_id,
+                    MSG_ID_FIELD: message_id_enc,
                     **dependencies
                 }
             }

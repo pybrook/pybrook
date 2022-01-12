@@ -35,7 +35,7 @@ from pybrook.consumers.field_generator import (
 )
 from pybrook.consumers.splitter import GearsSplitter
 from pybrook.consumers.worker import WorkerManager
-from pybrook.encoding import redisable_encoder
+from pybrook.encoding import redisable_encoder, redisable_decoder
 from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
 
@@ -186,7 +186,7 @@ class InReport(ConsumerGenerator,
                 report: cls = fastapi.Body(...),  # type: ignore
                 redis: aioredis.Redis = redis_dep):  # type: ignore
             await redis.xadd(cls._options.stream_name,
-                             redisable_encoder(report))
+                             redisable_encoder(report.dict(by_alias=False)))
 
 
 @dataclasses.dataclass
@@ -251,7 +251,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
             for msg_id, msg_body in (await
                                      redis.xrevrange(cls._options.stream_name,
                                                      count=1)):
-                return model_cls(**msg_body)
+                return model_cls(**redisable_decoder(msg_body))
             return {}
 
         @api.fastapi.on_event('startup')
@@ -291,7 +291,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                         last_msg, payload = m_data
                         try:
                             await websocket.send_text(
-                                model_cls(**payload).json())
+                                model_cls(**redisable_decoder(payload)).json())
                         except ConnectionClosedOK:
                             active = False
             try:

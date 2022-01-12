@@ -74,7 +74,7 @@ def process_message(msg):
     msg_id_key = f'{self.get_obj_msg_id_key("{obj_id}")}'
     obj_msg_id = execute("INCR", msg_id_key)
     out_stream = '{SPECIAL_CHAR}{self.namespace}{SPECIAL_CHAR}split'
-    message["{MSG_ID_FIELD}"] = f'{{obj_id}}:{{obj_msg_id}}'
+    message["{MSG_ID_FIELD}"] = f'"{{obj_id}}:{{obj_msg_id}}"'
     execute("XADD", out_stream, '*', *chain(*message.items()))
 
 for s in {self.input_streams}:

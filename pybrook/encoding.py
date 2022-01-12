@@ -1,19 +1,14 @@
-import json
-from typing import Dict, Union
+from typing import Dict, Any
 
-from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
+from orjson import orjson
 
 
-def redisable_encoder(model: Union[BaseModel, Dict]):
-    encoded_dict = jsonable_encoder(
-        model.dict(by_alias=False) if isinstance(model, BaseModel) else model)
-    for k, v in encoded_dict.items():
-        if type(v) in {str, bytes, int, float}:  # noqa: WPS516
-            continue
-        if type(v) is bool:  # noqa: WPS516
-            encoded_dict[k] = int(v)
-        else:
-            # TODO: Handle this when decoding
-            encoded_dict[k] = json.dumps(v)
-    return encoded_dict
+def redisable_encoder(data: Dict[str, Any]):
+    return {k: orjson.dumps(v) for k, v in data.items()}
+
+
+def redisable_decoder(data: Dict[str, str]):
+    return {k: redisable_value_decoder(v) for k, v in data.items()}
+
+def redisable_value_decoder(v):
+    return orjson.loads(v)
