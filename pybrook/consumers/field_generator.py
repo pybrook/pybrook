@@ -16,7 +16,7 @@ from pybrook.encoding import redisable_decoder, redisable_encoder
 
 class BaseFieldGenerator(BaseStreamConsumer):
     @dataclasses.dataclass
-    class Dependency:
+    class Dep:
         name: str
         value_type: Type
 
@@ -27,12 +27,16 @@ class BaseFieldGenerator(BaseStreamConsumer):
                  field_name: str,
                  namespace: str = ARTIFICIAL_NAMESPACE,
                  dependency_stream: str,
-                 dependencies: List[Dependency],
+                 history_key: str,
+                 history_len: int,
+                 dependencies: List[Dep],
                  pass_redis: List[str] = None,
                  read_chunk_length: int = 100):
         self.generator = generator
         self.dependencies = dependencies
         self.field_name = field_name
+        self.history_key = history_key
+        self.history_len = history_len
         self.pass_redis = pass_redis or []
         self.output_stream_name = f'{SPECIAL_CHAR}{namespace}{SPECIAL_CHAR}{field_name}'
         pydantic_fields = {
@@ -47,6 +51,13 @@ class BaseFieldGenerator(BaseStreamConsumer):
                          consumer_group_name=field_name,
                          input_streams=[dependency_stream],
                          read_chunk_length=read_chunk_length)
+
+    def write_to_history(self, message_id, value):
+        pass
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} input_streams={self.input_streams} ' \
+               f'history_key={self.history_key} history_len={self.history_len}>'
 
     def call_generator(self, dependencies, redis_conn: Union[aioredis.Redis,
                                                              redis.Redis]):

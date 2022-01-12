@@ -2,10 +2,20 @@ import asyncio
 import dataclasses
 import inspect
 import signal
+from itertools import chain
 from time import time
 from typing import (  # noqa: WPS235
-    Any, AsyncIterator, Callable, Dict, Generic, List, Optional, Type, TypeVar,
-    Union, get_type_hints,
+    Any,
+    AsyncIterator,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_type_hints,
 )
 
 import aioredis
@@ -42,18 +52,36 @@ class RouteGenerator:
         raise NotImplementedError
 
 
-class Dependency:
-    def __init__(self, src: Union['SourceField', aioredis.Redis, redis.Redis]):
-        self.is_aioredis = type(src) == type and issubclass(
-            src, aioredis.Redis)
+class Registrable:
+    def on_registered(self, model: 'PyBrook'):
+        """Used mostly to evaluate lazy stuff."""
+        raise NotImplementedError
+
+
+class Dependency(Registrable):
+    def __init__(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
+        self.is_aioredis: bool = False
+        self.is_redis: bool = False
+        self.src_field: Optional[SourceField] = self.validate_source_field(src)
+
+    def validate_source_field(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
+        self.is_aioredis = type(src) == type and issubclass(src, aioredis.Redis)
         self.is_redis = type(src) == type and issubclass(src, redis.Redis)
         if isinstance(src, SourceField):
-            self.src_field = src
-        elif self.is_aioredis or self.is_redis:
-            self.src_field = None
-        else:
+            return src
+        elif not (self.is_aioredis or self.is_redis):
             raise ValueError(
                 f'{src} is not an instance of SourceField or a Redis class')
+
+    def on_registered(self, model: 'PyBrook'):
+        """Artificial fields can be evaluated lazily, that's why this is required."""
+        if isinstance(self.src_field, str):
+            try:
+                self.src_field = model.artificial_fields[self.src_field]
+            except KeyError as e:
+                raise ValueError(
+                    f'Lazy evaluation is only supported for artificial fields,'
+                    f' and {self.src_field} is not one of these.') from e
 
     def cast(self, value: str):
         return self.src_field.value_type(value)
@@ -68,8 +96,18 @@ class Dependency:
 
 class HistoricalDependency(Dependency):
     def __init__(self, src_field: 'SourceField', history_length: int):
+        self._history_length = history_length
         super().__init__(src_field)
-        self.src_field.enable_history(history_length)
+
+    def on_registered(self, model: 'PyBrook'):
+        ret = super().on_registered(model)
+        self.src_field.enable_history(self._history_length)
+        return ret
+
+    def validate_source_field(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
+        if isinstance(src, str):
+            return src
+        return super().validate_source_field(src)
 
 
 class SourceField:
@@ -108,13 +146,13 @@ class SourceField:
             return f'{SPECIAL_CHAR}artificial{SPECIAL_CHAR}{self.field_name}'
 
     @property
-    def history_name(self) -> str:
+    def history_key(self) -> str:
         """Archive Sorted Set Key."""
-        return f'{self.stream_name}{SPECIAL_CHAR}ARCHIVE'
+        return f'{self.stream_name}{SPECIAL_CHAR}archive'
 
     def __repr__(self):
         return f'<{self.__class__.__name__} name={self.field_name},' \
-               f' report_class={self.source_obj.__name__},' \
+               f' report_class={self.source_obj.__name__ if self.source_obj else "artificial"},' \
                f' value_type={self.value_type.__name__},' \
                f' history_len={self.history_len}>'
 
@@ -367,7 +405,8 @@ class InputField(SourceField):
                          source_obj=report_class)
 
 
-class ArtificialField(SourceField, ConsumerGenerator):
+class ArtificialField(SourceField, Registrable, ConsumerGenerator):
+
     def __init__(self, calculate: Callable, name: str = None):
         annotations = get_type_hints(calculate)
         try:
@@ -394,6 +433,10 @@ class ArtificialField(SourceField, ConsumerGenerator):
     def __call__(self, *args, **kwargs):
         return self.calculate(*args, **kwargs)
 
+    def on_registered(self, model: 'PyBrook'):
+        for dep in self.dependencies.values():
+            dep.on_registered(model)
+
     def gen_consumers(self, model: 'PyBrook'):  # type: ignore
         dependency_resolver = DependencyResolver(
             redis_url=model.redis_url,
@@ -409,8 +452,8 @@ class ArtificialField(SourceField, ConsumerGenerator):
         model.add_consumer(dependency_resolver)
 
         field_generator_deps = [
-            BaseFieldGenerator.Dependency(name=dep_name,
-                                          value_type=dep.src_field.value_type)
+            BaseFieldGenerator.Dep(name=dep_name,
+                                   value_type=dep.src_field.value_type)
             for dep_name, dep in self.dependencies.items() if dep.src_field
         ]
 
@@ -421,6 +464,8 @@ class ArtificialField(SourceField, ConsumerGenerator):
             dependency_stream=dependency_resolver.output_stream_name,
             field_name=self.field_name,
             generator=self.calculate,
+            history_key=self.history_key,
+            history_len=self.history_len,
             dependencies=field_generator_deps,
             pass_redis=[
                 k for k, d in self.dependencies.items()
@@ -468,19 +513,28 @@ class PyBrook:
     def __init__(self,
                  redis_url: str,
                  api_class: Type[PyBrookApi] = PyBrookApi):
-        self.inputs: Dict[str, Type[InReport]] = {}
-        self.outputs: Dict[str, Type[OutReport]] = {}
+        self.inputs: Dict[str, Type[InReport, ConsumerGenerator]] = {}
+        self.outputs: Dict[str, Type[OutReport, ConsumerGenerator]] = {}
         self.artificial_fields: Dict[str, ArtificialField] = {}
         self.consumers: List[BaseStreamConsumer] = []
         self.redis_url: str = redis_url
         self.api: PyBrookApi = api_class(self)
         self.manager = None
 
+    def _process_model(self):
+        if not self.consumers:
+            for cls in chain(self.inputs.values(), self.outputs.values()):
+                self.visit(cls)
+            for cls in self.artificial_fields.values():
+                self.visit(cls)
+
     @property
     def app(self) -> fastapi.FastAPI:
+        self._process_model()
         return self.api.fastapi
 
     def run(self):
+        self._process_model()
         self.manager = WorkerManager(self.consumers)
         self.manager.run()
 
@@ -510,7 +564,6 @@ class PyBrook:
             name_safe = name or cls.__name__
             self.inputs[name_safe] = cls
             cls._options = InReportOptions(id_field=id_field, name=name_safe)
-            self.visit(cls)
             self.api.visit(cls)
             return cls
 
@@ -521,7 +574,6 @@ class PyBrook:
             name_safe = name or cls.__name__
             self.outputs[name_safe] = cls
             cls._options = OutReportOptions(name=name_safe)
-            self.visit(cls)
             self.api.visit(cls)
             return cls
 
@@ -533,7 +585,7 @@ class PyBrook:
         def wrapper(fun: Callable) -> ArtificialField:
             field = ArtificialField(fun, name=name)
             self.artificial_fields[name or fun.__name__] = field
-            self.visit(field)
+            field.on_registered(self)
             return field
 
         return wrapper

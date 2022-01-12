@@ -8,7 +8,6 @@ import redis
 from pydantic import Field
 
 from pybrook.models import (
-    Dependency,
     HistoricalDependency,
     InReport,
     OutReport,
@@ -41,9 +40,8 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field('stop')
-async def stop(lat: float = HistoricalDependency(ZTMReport.longitude, history_length=4),
-               lon: float = HistoricalDependency(
-                   ZTMReport.longitude, history_length=5)) -> Optional[List[str]]:
+async def stop(lat: float = HistoricalDependency('stop', history_length=4),
+               lon: float = HistoricalDependency(ZTMReport.longitude, history_length=5)) -> Optional[List[str]]:
     await asyncio.sleep(6)
     return [1, 2, 3]
 
