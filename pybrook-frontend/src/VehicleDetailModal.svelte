@@ -68,6 +68,7 @@
 
                         {#if modalData.hasOwnProperty(stream_name)}
                             <ReportTimeElapsed streamData={modalData[stream_name]}
+                                               streamName={stream_name}
                                                latestMessageId={latestMessageId}
                                                latestTime={latestTime}
                                                latestVehicleMessageId={latestVehicleMessageId}/>

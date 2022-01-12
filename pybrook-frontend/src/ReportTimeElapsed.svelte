@@ -20,7 +20,7 @@
         </div>
     {:else}
         <div style="color:orange">
-            {latestVehicleMessageId - streamData.vehicleMessageId} records behind, {(now - new Date(messageTimes[streamData.messageId])) / 1000} seconds old
+            {latestVehicleMessageId - streamData.vehicleMessageId} records behind{#if messageTimes[streamData.messageId]}, {(now - new Date(messageTimes[streamData.messageId])) / 1000} seconds old{/if}
         </div>
     {/if}
 {/if}

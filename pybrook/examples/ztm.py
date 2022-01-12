@@ -40,12 +40,42 @@ async def stop(lat: float = Dependency(ZTMReport.latitude),
     return 0
 
 
-@brook.output('course-report')
+@brook.output('course-report123')
 class CourseReport(OutReport):
     stop_name = ReportField(stop)
     lat = ReportField(ZTMReport.latitude)
     lon = ReportField(ZTMReport.longitude)
     time = ReportField(ZTMReport.time)
+
+
+@brook.output('test-report')
+class TestReport(OutReport):
+    test = ReportField(stop)
+
+
+@brook.output('pos-report')
+class PosReport(OutReport):
+    lat = ReportField(ZTMReport.latitude)
+    lon = ReportField(ZTMReport.longitude)
+
+
+@brook.output('posx-report')
+class PosReport(OutReport):
+    lat = ReportField(ZTMReport.latitude)
+    lon = ReportField(ZTMReport.longitude)
+
+
+@brook.output('posx3-report')
+class PosReport(OutReport):
+    lat = ReportField(ZTMReport.latitude)
+    lon = ReportField(ZTMReport.longitude)
+
+
+@brook.output('lel-report')
+class PosReport(OutReport):
+    lat = ReportField(ZTMReport.latitude)
+    lon = ReportField(ZTMReport.longitude)
+    line = ReportField(ZTMReport.line)
 
 
 brook.set_meta(latitude_field=LocationReport.latitude,

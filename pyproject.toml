@@ -21,6 +21,7 @@ pandoc-crossref = "^0.1.1"
 gunicorn = "^20.1.0"
 httpx = "^0.21.1"
 watchdog = "^2.1.6"
+uvloop = "^0.16.0"
 
 [tool.poetry.dev-dependencies]
 # docs
