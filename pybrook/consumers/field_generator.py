@@ -11,7 +11,7 @@ from pybrook.consumers.base import (
     BaseStreamConsumer,
     SyncStreamConsumer,
 )
-from pybrook.encoding import redisable_encoder, redisable_decoder
+from pybrook.encoding import redisable_decoder, redisable_encoder
 
 
 class BaseFieldGenerator(BaseStreamConsumer):

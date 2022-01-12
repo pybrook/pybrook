@@ -22,7 +22,9 @@ def main():
     model_module = import_module(app_arg[0])
     modified = True
     while modified:
-        brook = getattr(model_module, app_arg[1]) if len(app_arg) > 1 else getattr(model_module, 'brook')
+        brook = getattr(model_module,
+                        app_arg[1]) if len(app_arg) > 1 else getattr(
+                            model_module, 'brook')
         handler = ModelChangeEventHandler(brook)
         observer = Observer()
         observer.schedule(handler, model_module.__file__)

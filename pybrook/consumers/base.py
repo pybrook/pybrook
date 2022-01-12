@@ -112,7 +112,9 @@ class SyncStreamConsumer(BaseStreamConsumer):
         super().stop(signum, frame)
         self.executor.shutdown(wait=False, cancel_futures=False)
         if self.executor._work_queue.qsize():
-            logger.warning('Waiting for all futures to finish, use Ctrl + C to force exit.')
+            logger.warning(
+                'Waiting for all futures to finish, use Ctrl + C to force exit.'
+            )
 
     def run_sync(self):
         self.register_signals()
@@ -122,7 +124,8 @@ class SyncStreamConsumer(BaseStreamConsumer):
         self._active = True
         xreadgroup_params = self._xreadgroup_params
         self.executor = futures.ThreadPoolExecutor(
-            max_workers=self._read_chunk_length)  # TODO: Parametrize max_workers
+            max_workers=self._read_chunk_length
+        )  # TODO: Parametrize max_workers
         tasks: Set[futures.Future] = set()
         while self.active:
             response = redis_conn.xreadgroup(**xreadgroup_params)
@@ -130,8 +133,9 @@ class SyncStreamConsumer(BaseStreamConsumer):
                 for msg_id, payload in messages:
                     try:
                         tasks.add(
-                        self.executor.submit(self._handle_message_sync, stream,
-                        msg_id, payload, redis_conn))
+                            self.executor.submit(self._handle_message_sync,
+                                                 stream, msg_id, payload,
+                                                 redis_conn))
                     except RuntimeError as e:
                         if self.active:
                             raise e
@@ -141,7 +145,8 @@ class SyncStreamConsumer(BaseStreamConsumer):
                 for num, task in enumerate(futures.as_completed(tasks)):
                     task.result()
                     if num > self._read_chunk_length / 2 or not self.active:
-                        done, tasks = futures.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                        done, tasks = futures.wait(
+                            tasks, return_when=asyncio.FIRST_COMPLETED)
                         xreadgroup_params[
                             'count'] = self._read_chunk_length - len(tasks)
                         break
@@ -179,7 +184,9 @@ class AsyncStreamConsumer(BaseStreamConsumer):
     def stop(self, signum=None, frame=None):
         super().stop(signum, frame)
         if len(asyncio.all_tasks()):
-            logger.info('Waiting for all asyncio tasks to finish, use Ctrl + C to force exit.')
+            logger.info(
+                'Waiting for all asyncio tasks to finish, use Ctrl + C to force exit.'
+            )
 
     async def run_async(self):  # noqa: WPS217
         self.register_signals()
@@ -199,8 +206,10 @@ class AsyncStreamConsumer(BaseStreamConsumer):
             for num, task in enumerate(asyncio.as_completed(tasks)):
                 await task
                 if num > self._read_chunk_length / 2 or not self.active:
-                    done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-                    xreadgroup_params['count'] = self._read_chunk_length - len(tasks)
+                    done, tasks = await asyncio.wait(
+                        tasks, return_when=asyncio.FIRST_COMPLETED)
+                    xreadgroup_params['count'] = self._read_chunk_length - len(
+                        tasks)
                     break
         await redis_conn.close()
 

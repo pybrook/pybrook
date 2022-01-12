@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from time import sleep
-from typing import Optional, List
+from typing import List, Optional
 
 import aioredis
 import redis
@@ -35,7 +35,8 @@ class LocationReport(OutReport):
 
 @brook.artificial_field('stop')
 async def stop(lat: float = Dependency(ZTMReport.latitude),
-               lon: float = Dependency(ZTMReport.longitude)) -> Optional[List[str]]:
+               lon: float = Dependency(
+                   ZTMReport.longitude)) -> Optional[List[str]]:
     await asyncio.sleep(6)
     return [1, 2, 3]
 

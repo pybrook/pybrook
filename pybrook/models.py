@@ -4,17 +4,8 @@ import inspect
 import signal
 from time import time
 from typing import (  # noqa: WPS235
-    Any,
-    AsyncIterator,
-    Callable,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    get_type_hints,
+    Any, AsyncIterator, Callable, Dict, Generic, List, Optional, Type, TypeVar,
+    Union, get_type_hints,
 )
 
 import aioredis
@@ -35,7 +26,7 @@ from pybrook.consumers.field_generator import (
 )
 from pybrook.consumers.splitter import GearsSplitter
 from pybrook.consumers.worker import WorkerManager
-from pybrook.encoding import redisable_encoder, redisable_decoder
+from pybrook.encoding import redisable_decoder, redisable_encoder
 from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
 
