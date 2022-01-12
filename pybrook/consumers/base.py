@@ -55,7 +55,7 @@ class BaseStreamConsumer:
             try:
                 redis_conn.xgroup_create(stream,
                                          self._consumer_group_name,
-                                         id=0,
+                                         id='$',
                                          mkstream=True)
             except redis.ResponseError as e:
                 if 'BUSYGROUP' not in str(e):
