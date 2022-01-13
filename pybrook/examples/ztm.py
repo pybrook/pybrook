@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from time import sleep
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import aioredis
 import redis
@@ -12,7 +12,7 @@ from pybrook.models import (
     InReport,
     OutReport,
     PyBrook,
-    ReportField,
+    ReportField, Dependency,
 )
 
 brook = PyBrook('redis://localhost')
@@ -40,10 +40,14 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field('stop')
-async def stop(lat: float = HistoricalDependency('stop', history_length=4),
-               lon: float = HistoricalDependency(ZTMReport.longitude, history_length=5)) -> Optional[List[str]]:
+async def stop(stop: List[int] = HistoricalDependency('stop', history_length=1),
+               lon: int = Dependency(ZTMReport.longitude)) -> int:
     await asyncio.sleep(6)
-    return [1, 2, 3]
+    print(stop)
+    if stop[-1] is not None:
+        return stop[-1] + 1
+    else:
+        return 0
 
 
 @brook.output('raport2')

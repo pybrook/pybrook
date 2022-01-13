@@ -36,7 +36,7 @@ from pybrook.consumers.field_generator import (
 )
 from pybrook.consumers.splitter import GearsSplitter
 from pybrook.consumers.worker import WorkerManager
-from pybrook.encoding import redisable_decoder, redisable_encoder
+from pybrook.encoding import decode_stream_message, encode_stream_message
 from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
 
@@ -63,6 +63,11 @@ class Dependency(Registrable):
         self.is_aioredis: bool = False
         self.is_redis: bool = False
         self.src_field: Optional[SourceField] = self.validate_source_field(src)
+        self.is_historical = False
+
+    @property
+    def value_type(self):
+        return self.src_field.value_type
 
     def validate_source_field(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
         self.is_aioredis = type(src) == type and issubclass(src, aioredis.Redis)
@@ -83,9 +88,6 @@ class Dependency(Registrable):
                     f'Lazy evaluation is only supported for artificial fields,'
                     f' and {self.src_field} is not one of these.') from e
 
-    def cast(self, value: str):
-        return self.src_field.value_type(value)
-
     def __repr__(self):
         if self.is_aioredis:
             return '<Dependency aioredis>'
@@ -95,14 +97,14 @@ class Dependency(Registrable):
 
 
 class HistoricalDependency(Dependency):
-    def __init__(self, src_field: 'SourceField', history_length: int):
-        self._history_length = history_length
+    def __init__(self, src_field: Union['SourceField', str], history_length: int):
         super().__init__(src_field)
+        self.history_length = history_length
+        self.is_historical = True
 
-    def on_registered(self, model: 'PyBrook'):
-        ret = super().on_registered(model)
-        self.src_field.enable_history(self._history_length)
-        return ret
+    @property
+    def value_type(self):
+        return List[Union[self.src_field.value_type, None]]
 
     def validate_source_field(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
         if isinstance(src, str):
@@ -129,14 +131,6 @@ class SourceField:
         self.field_name: str = field_name
         self.source_obj: Optional[Type[InReport]] = source_obj
         self.value_type: Type = value_type
-        self._history_len: int = 0
-
-    @property
-    def history_len(self):
-        return self._history_len
-
-    def enable_history(self, history_len: int):
-        self._history_len = max(self._history_len, history_len)
 
     @property  # type: ignore
     def stream_name(self) -> str:
@@ -145,16 +139,10 @@ class SourceField:
         else:
             return f'{SPECIAL_CHAR}artificial{SPECIAL_CHAR}{self.field_name}'
 
-    @property
-    def history_key(self) -> str:
-        """Archive Sorted Set Key."""
-        return f'{self.stream_name}{SPECIAL_CHAR}archive'
-
     def __repr__(self):
         return f'<{self.__class__.__name__} name={self.field_name},' \
                f' report_class={self.source_obj.__name__ if self.source_obj else "artificial"},' \
-               f' value_type={self.value_type.__name__},' \
-               f' history_len={self.history_len}>'
+               f' value_type={self.value_type.__name__}>'
 
 
 @dataclasses.dataclass
@@ -232,7 +220,7 @@ class InReport(ConsumerGenerator,
                 report: cls = fastapi.Body(...),  # type: ignore
                 redis: aioredis.Redis = redis_dep):  # type: ignore
             await redis.xadd(cls._options.stream_name,
-                             redisable_encoder(report.dict(by_alias=False)))
+                             encode_stream_message(report.dict(by_alias=False)))
 
 
 @dataclasses.dataclass
@@ -297,7 +285,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
             for msg_id, msg_body in (await
                                      redis.xrevrange(cls._options.stream_name,
                                                      count=1)):
-                return model_cls(**redisable_decoder(msg_body))
+                return model_cls(**decode_stream_message(msg_body))
             return {}
 
         @api.fastapi.on_event('startup')
@@ -337,7 +325,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                         last_msg, payload = m_data
                         try:
                             await websocket.send_text(
-                                model_cls(**redisable_decoder(payload)).json())
+                                model_cls(**decode_stream_message(payload)).json())
                         except ConnectionClosedOK:
                             active = False
             try:
@@ -430,6 +418,14 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
                 f' which do not subclass Dependency.')
         self.calculate = calculate
 
+    @property
+    def regular_dependencies(self) -> Dict[str, Dependency]:
+        return {k: d for k, d in self.dependencies.items() if not isinstance(d, HistoricalDependency)}
+
+    @property
+    def historical_dependencies(self) -> Dict[str, HistoricalDependency]:
+        return {k: d for k, d in self.dependencies.items() if isinstance(d, HistoricalDependency)}
+
     def __call__(self, *args, **kwargs):
         return self.calculate(*args, **kwargs)
 
@@ -446,14 +442,23 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
                 DependencyResolver.Dep(src_stream=dep.src_field.stream_name,
                                        src_key=dep.src_field.field_name,
                                        dst_key=dep_key)
-                for dep_key, dep in self.dependencies.items() if dep.src_field
+                for dep_key, dep in self.regular_dependencies.items() if dep.src_field
+            ],
+            historical_dependencies=[
+                DependencyResolver.HistoricalDep(
+                    src_stream=dep.src_field.stream_name,
+                    src_key=dep.src_field.field_name,
+                    dst_key=dep_key,
+                    history_length=dep.history_length
+                )
+                for dep_key, dep in self.historical_dependencies.items() if dep.src_field
             ],
             resolver_name=f'{self.field_name}')
         model.add_consumer(dependency_resolver)
 
         field_generator_deps = [
             BaseFieldGenerator.Dep(name=dep_name,
-                                   value_type=dep.src_field.value_type)
+                                   value_type=dep.value_type)
             for dep_name, dep in self.dependencies.items() if dep.src_field
         ]
 
@@ -464,8 +469,6 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
             dependency_stream=dependency_resolver.output_stream_name,
             field_name=self.field_name,
             generator=self.calculate,
-            history_key=self.history_key,
-            history_len=self.history_len,
             dependencies=field_generator_deps,
             pass_redis=[
                 k for k, d in self.dependencies.items()
