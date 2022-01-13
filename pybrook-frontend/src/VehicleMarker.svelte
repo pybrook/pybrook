@@ -9,7 +9,7 @@
 
     const dispatch = createEventDispatcher();
     let prevLatLng = undefined;
-    let directionDeg = 0;
+    export let directionDeg = 0;
     let destroy;
     let markerProto;
 
@@ -40,7 +40,7 @@
                 html: (`<div style="border: 1px solid rgba(10, 10, 10, 0.5); color:black; font-weight: bold;`
                     + `height: 30px; border-radius: 8px;border-bottom-left-radius:0;display:flex;flex-direction: row;justify-content:space-between;`
                     + `align-items:center;background:${background};"><div style="margin-left:5px;width:20px;display:flex;flex-direction:row;align-items: center;">`
-                    + `<img style="transform: rotate(${directionDeg}deg);height:15px;width:15px;" src="${img}"></div>`
+                    + `<img style="transform: rotate(${directionDeg - 90}deg);height:15px;width:15px;" src="${img}"></div>`
                     + `<div style="margin-right: 5px;">${labelText}</div></div><div style="position:absolute;bottom:0;left:0;width: 4px;height:4px;background: black;"></div>`),
                 iconSize: [labelText.length * 6.6 + 30, 30],
                 iconAnchor: [0, 30]

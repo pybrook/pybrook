@@ -552,11 +552,13 @@ class PyBrook:
 
     def set_meta(self, *, latitude_field: ReportField,
                  longitude_field: ReportField, group_field: ReportField,
-                 time_field: ReportField):
+                 time_field: ReportField, direction_field: ReportField = None):
         self.api.schema.latitude_field = self._gen_field_info(latitude_field)
         self.api.schema.longitude_field = self._gen_field_info(longitude_field)
         self.api.schema.group_field = self._gen_field_info(group_field)
         self.api.schema.time_field = self._gen_field_info(time_field)
+        if direction_field:
+            self.api.schema.direction_field = self._gen_field_info(direction_field)
 
     def input(
             self,  # noqa: A003

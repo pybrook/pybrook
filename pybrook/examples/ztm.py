@@ -1,7 +1,8 @@
 import asyncio
 from datetime import datetime
+from math import atan2, pi, degrees
 from time import sleep
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 
 import aioredis
 import redis
@@ -39,25 +40,26 @@ class LocationReport(OutReport):
     brigade = ReportField(ZTMReport.brigade)
 
 
-@brook.artificial_field('stop')
-async def stop(stop: List[int] = HistoricalDependency('stop', history_length=1),
-               lon: int = Dependency(ZTMReport.longitude)) -> int:
-    await asyncio.sleep(6)
-    print(stop)
-    if stop[-1] is not None:
-        return stop[-1] + 1
+@brook.artificial_field('direction')
+async def direction(lat_history: List[float] = HistoricalDependency(ZTMReport.latitude, history_length=1),
+               lon_history: List[float] = HistoricalDependency(ZTMReport.longitude, history_length=1),
+               lat: float = Dependency(ZTMReport.latitude),
+               lon: float = Dependency(ZTMReport.longitude)) -> Optional[float]:
+    if lat_history[-1] and lon_history[-1]:
+        return degrees(atan2(lon - lon_history[-1], lat - lat_history[-1]))
     else:
-        return 0
+        return None
 
 
 @brook.output('raport2')
 class PosReport(OutReport):
     lat = ReportField(ZTMReport.latitude)
     long = ReportField(ZTMReport.longitude)
-    stop = ReportField(stop)
+    direction = ReportField(direction)
 
 
 brook.set_meta(latitude_field=LocationReport.latitude,
                longitude_field=LocationReport.longitude,
                group_field=LocationReport.line,
+               direction_field=PosReport.direction,
                time_field=LocationReport.time)

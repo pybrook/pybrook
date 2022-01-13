@@ -16,14 +16,15 @@ configStore.subscribe((config) => {
     console.log("Received new config!", config)
     webSockets.forEach((s) => s.close())
     let closed=false;
-    let {latitude_field, time_field, longitude_field, group_field, special_char, msg_id_field} = config;
+    let {latitude_field, time_field, direction_field, longitude_field, group_field, special_char, msg_id_field} = config;
     config.streams.forEach(({stream_name, websocket_path}) => {
         let socket = new WebSocket(`${apiWsUrl}${websocket_path}`)
         let useLatitude = latitude_field.stream_name === stream_name;
         let useLongitude = longitude_field.stream_name === stream_name;
+        let useDirection = direction_field && direction_field.stream_name === stream_name;
         let useGroup = group_field.stream_name === stream_name;
         let useTime = time_field.stream_name === stream_name
-        let containsGeneric = useLongitude || useLatitude || useGroup;
+        let containsGeneric = useLongitude || useLatitude || useGroup || useDirection;
         socket.addEventListener('message', ({data}) => {
             if(!data) return;
             data = JSON.parse(data);
@@ -52,6 +53,7 @@ configStore.subscribe((config) => {
             if(useLongitude) genericData.longitude =  data[longitude_field.field_name]
             if(useGroup) genericData.group = data[group_field.field_name]
             if(useTime) genericData.time = originalMessageTime;
+            if(useDirection) genericData.direction = data[direction_field.field_name]
             genericReportStore.set({vehicleId, vehicleMessageId, messageId, data: genericData});
         })
         socket.addEventListener('close', (data) => {

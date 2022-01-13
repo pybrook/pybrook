@@ -11,6 +11,7 @@ from pybrook.consumers.base import (
     GearsStreamConsumer,
     SyncStreamConsumer,
 )
+from pybrook.encoding import decode_value, encode_value
 
 
 class BaseSplitter(BaseStreamConsumer):
@@ -34,7 +35,7 @@ class BaseSplitter(BaseStreamConsumer):
         message_id = f'{obj_id}{SPECIAL_CHAR}{obj_msg_id}'
         return {
             f'{SPECIAL_CHAR}{self.namespace}{SPECIAL_CHAR}split': {
-                MSG_ID_FIELD: message_id,
+                MSG_ID_FIELD: encode_value(message_id),
                 **message
             }
         }
@@ -48,7 +49,7 @@ class AsyncSplitter(AsyncStreamConsumer, BaseSplitter):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: aioredis.Redis,
             pipeline: aioredis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        obj_id = message[self.object_id_field]
+        obj_id = decode_value(message[self.object_id_field])
         obj_msg_id = await redis_conn.incr(self.get_obj_msg_id_key(obj_id))
         return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
 
@@ -58,7 +59,7 @@ class SyncSplitter(SyncStreamConsumer, BaseSplitter):
             self, stream_name: str, message: Dict[str, str], *,
             redis_conn: redis.Redis,
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
-        obj_id = message[self.object_id_field]
+        obj_id = decode_value(message[self.object_id_field])
         obj_msg_id = str(redis_conn.incr(self.get_obj_msg_id_key(obj_id)))
         return self.split_msg(message, obj_id=obj_id, obj_msg_id=obj_msg_id)
 
@@ -67,10 +68,11 @@ class GearsSplitter(GearsStreamConsumer, BaseSplitter):
     def register_builder(self, pipeline: redis.client.Pipeline):
         cmd = f'''
 from itertools import chain
+from json import loads, dumps
 
 def process_message(msg):
     message = msg["value"]
-    obj_id = message["{self.object_id_field}"]
+    obj_id = loads(message["{self.object_id_field}"])
     msg_id_key = f'{self.get_obj_msg_id_key("{obj_id}")}'
     obj_msg_id = execute("INCR", msg_id_key)
     out_stream = '{SPECIAL_CHAR}{self.namespace}{SPECIAL_CHAR}split'

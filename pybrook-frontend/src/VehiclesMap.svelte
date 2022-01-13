@@ -11,6 +11,7 @@
     let vehiclesInViewPort = [];
     let bounds;
     let vehiclePositions = {};
+    let vehicleDirections = {};
     let vehicleIdToGroup = {};
     let mapNotificationHeight;
     let selected;
@@ -32,6 +33,9 @@
         }
         if(data.latitude && data.longitude){
             vehiclePositions[vehicleId] = {lat: data.latitude, lon: data.longitude};
+        }
+        if(data.direction){
+            vehicleDirections[vehicleId] = data.direction;
         }
     });
     onDestroy(unsubscribe);
@@ -63,7 +67,7 @@
         </div>
     {#if !tooManyVehicles}
         {#each vehiclesInViewPort as vehicleId (vehicleId)}
-            <VehicleMarker {map} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon}
+            <VehicleMarker {map} directionDeg={vehicleDirections[vehicleId]} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon}
                            selected={selected == vehicleId}
                            labelText="{vehicleIdToGroup[vehicleId]}/{vehicleId}"
                            on:click={() => {dispatch('vehicle-selected', {vehicleId}); selected=vehicleId;}}/>

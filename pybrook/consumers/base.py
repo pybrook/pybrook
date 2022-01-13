@@ -25,11 +25,14 @@ class BaseStreamConsumer:
                  redis_url: str,
                  consumer_group_name: str,
                  input_streams: Iterable[str],
+                 use_thread_executor: bool = False,
                  read_chunk_length: int = 1):
         self._consumer_group_name = consumer_group_name
         self._redis_url = redis_url
         self._active = False
+        self._use_thread_executor = use_thread_executor
         self._read_chunk_length = read_chunk_length
+        self.executor = None
         self.input_streams = tuple(input_streams)
 
     @property
@@ -56,7 +59,7 @@ class BaseStreamConsumer:
                 logger.error(self._consumer_group_name)
                 redis_conn.xgroup_create(stream,
                                          self._consumer_group_name,
-                                         id='$',
+                                         id='0',
                                          mkstream=True)
             except redis.ResponseError as e:
                 if 'BUSYGROUP' not in str(e):
@@ -110,6 +113,8 @@ class SyncStreamConsumer(BaseStreamConsumer):
 
     def stop(self, signum=None, frame=None):
         super().stop(signum, frame)
+        if not self.executor:
+            return
         self.executor.shutdown(wait=False, cancel_futures=False)
         if self.executor._work_queue.qsize():
             logger.warning(
@@ -123,33 +128,31 @@ class SyncStreamConsumer(BaseStreamConsumer):
                                                  decode_responses=True)
         self._active = True
         xreadgroup_params = self._xreadgroup_params
-        self.executor = futures.ThreadPoolExecutor(
-            max_workers=self._read_chunk_length
-        )  # TODO: Parametrize max_workers
+        if self._use_thread_executor:
+            self.executor = futures.ThreadPoolExecutor(
+                max_workers=self._read_chunk_length
+            )  # TODO: Parametrize max_workers
         tasks: Set[futures.Future] = set()
         while self.active:
             response = redis_conn.xreadgroup(**xreadgroup_params)
             for stream, messages in response:
                 for msg_id, payload in messages:
-                    try:
+                    if self._use_thread_executor:
                         tasks.add(
                             self.executor.submit(self._handle_message_sync,
                                                  stream, msg_id, payload,
                                                  redis_conn))
-                    except RuntimeError as e:
-                        if self.active:
-                            raise e
-                        else:
-                            return
-
-                for num, task in enumerate(futures.as_completed(tasks)):
-                    task.result()
-                    if num > self._read_chunk_length / 2 or not self.active:
-                        done, tasks = futures.wait(
-                            tasks, return_when=asyncio.FIRST_COMPLETED)
-                        xreadgroup_params[
-                            'count'] = self._read_chunk_length - len(tasks)
-                        break
+                    else:
+                        self._handle_message_sync(stream, msg_id, payload, redis_conn)
+                if self._use_thread_executor:
+                    for num, task in enumerate(futures.as_completed(tasks)):
+                        task.result()
+                        if num > self._read_chunk_length / 2 or not self.active:
+                            done, tasks = futures.wait(
+                                tasks, return_when=asyncio.FIRST_COMPLETED)
+                            xreadgroup_params[
+                                'count'] = self._read_chunk_length - len(tasks)
+                            break
         redis_conn.close()
 
     def _handle_message_sync(self, stream: str, msg_id: str,

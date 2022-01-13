@@ -24,3 +24,4 @@ class PyBrookSchema(BaseModel):
     longitude_field: Optional[FieldInfo] = None
     time_field: Optional[FieldInfo] = None
     group_field: Optional[FieldInfo] = None
+    direction_field: Optional[FieldInfo] = None

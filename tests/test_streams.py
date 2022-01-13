@@ -21,6 +21,7 @@ from pybrook.consumers.base import (
 from pybrook.consumers.dependency_resolver import DependencyResolver
 from pybrook.consumers.splitter import AsyncSplitter, Splitter, SyncSplitter
 from pybrook.consumers.worker import Worker
+from pybrook.encoding import decode_value
 
 TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
 
@@ -67,7 +68,7 @@ def write_test_reports(redis_sync: redis.Redis,
     data = []
     with redis_sync.pipeline() as p:
         for i in range(num):
-            item = {'vehicle_id': 'Vehicle 1', 'a': f'{i}', 'b': f'{i + 1}'}
+            item = {'vehicle_id': '"Vehicle 1"', 'a': f'{i}', 'b': f'{i + 1}'}
             p.xadd('test_input', item)
             data.append(item)
         p.execute()
@@ -88,8 +89,8 @@ def test_input(redis_sync) -> List[Dict[str, str]]:
 def test_dependency(redis_sync) -> List[Dict[str, str]]:
     with redis_sync.pipeline() as p:
         for i in range(100):
-            p.xadd(':a', {':_msg_id': f'Vehicle 1:{i}', 'a': str(i)})
-            p.xadd(':b', {':_msg_id': f'Vehicle 1:{i}', 'b': str(i)})
+            p.xadd(':a', {':_msg_id': f'"Vehicle 1:{i}"', 'a': str(i)})
+            p.xadd(':b', {':_msg_id': f'"Vehicle 1:{i}"', 'b': str(i)})
         p.execute()
 
 
@@ -157,10 +158,10 @@ async def test_splitter_async(redis_async: aioredis.Redis, test_input,
     assert (await redis_async.xlen(':test:split')) == len(test_input)
     assert message[0] == ':test:split'
     assert message[1][0][1] == {
-        ':_msg_id': 'Vehicle 1:1',
+        ':_msg_id': '"Vehicle 1:1"',
         'a': '0',
         'b': '1',
-        'vehicle_id': 'Vehicle 1'
+        'vehicle_id': '"Vehicle 1"'
     }
 
 
@@ -185,10 +186,10 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
     message = redis_sync.xread(streams={':test:split': '0-0'}, count=1)[0]
     assert message[0] == ':test:split'
     assert message[1][0][1] == {
-        ':_msg_id': 'Vehicle 1:1',
+        ':_msg_id': '"Vehicle 1:1"',
         'a': '0',
         'b': '1',
-        'vehicle_id': 'Vehicle 1'
+        'vehicle_id': '"Vehicle 1"'
     }
 
 
@@ -217,7 +218,7 @@ def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
     assert redis_sync.xlen(resolver.output_stream_name) == 100
     out_data = redis_sync.xread({resolver.output_stream_name: '0'})[0][1]
     for _, message in out_data:
-        assert message[MSG_ID_FIELD].split(
+        assert decode_value(message[MSG_ID_FIELD]).split(
             ':')[-1] == message['a'] == message['b']
 
 

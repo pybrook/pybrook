@@ -1,4 +1,5 @@
 import dataclasses
+from datetime import datetime
 from itertools import chain
 from typing import Dict, List
 
@@ -69,7 +70,7 @@ class DependencyResolver(SyncStreamConsumer):
             for k in self._historical_dependencies if k.src_key in message
         ]
         if historical_deps:
-            vehicle_id, vehicle_message_id = message_id.rsplit(SPECIAL_CHAR)
+            vehicle_id, vehicle_message_id = message_id.rsplit(SPECIAL_CHAR, maxsplit=1)
             dependency_map_key_base = self.dependency_map_key(vehicle_id + SPECIAL_CHAR)
             for dst_key, value, history_length in historical_deps:
                 id_in_deps = history_length
@@ -105,10 +106,11 @@ class DependencyResolver(SyncStreamConsumer):
             dependencies = redis_conn.hgetall(dep_key)
             for h in self._historical_dependencies:
                 dependencies[h.dst_key] = []
-                for i in range(0, h.history_length):
-                    val = dependencies.pop(f'{h.dst_key}:{i}', None)
+                for i in range(h.history_length):
+                    val = dependencies.pop(f'{h.dst_key}{SPECIAL_CHAR}{i}', None)
                     dependencies[h.dst_key].append(decode_value(val) if val is not None else val)
                 dependencies[h.dst_key] = encode_value(dependencies[h.dst_key])
+            # tutaj była transakcja
             pipeline.delete(dep_key, incr_key)
             return {
                 self.output_stream_name: {
