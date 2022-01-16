@@ -5,7 +5,7 @@ export const genericReportStore = writable(null);
 export const configStore = writable(null);
 export const latestReports = writable({});
 
-const apiUrl = 'localhost:8000';
+const apiUrl = window.location.host;
 const apiWsUrl = `ws://${apiUrl}`;
 const apiHttpUrl = `http://${apiUrl}`;
 let webSockets = []

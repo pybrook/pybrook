@@ -3,6 +3,7 @@ import dataclasses
 import inspect
 import signal
 from itertools import chain
+from pathlib import Path
 from time import time
 from typing import (  # noqa: WPS235
     Any,
@@ -24,6 +25,7 @@ import pydantic
 import redis
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
 from websockets.exceptions import ConnectionClosedOK
 
 from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
@@ -290,6 +292,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
 
         @api.fastapi.on_event('startup')
         def startup():
+            api.fastapi.mount('/', StaticFiles(directory=str(Path(__file__).parent / 'frontend'), html=True),
+                               name='static')
             api.fastapi.state.socket_active = True
             signal.signal(signal.SIGINT, shutdown)
             signal.signal(signal.SIGTERM, shutdown)
