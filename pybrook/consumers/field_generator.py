@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Callable, Dict, List, Type, Union, Any
+from typing import Any, Callable, Dict, List, Type, Union
 
 import aioredis
 import pydantic
@@ -53,7 +53,8 @@ class BaseFieldGenerator(BaseStreamConsumer):
     def __repr__(self):
         return f'<{self.__class__.__name__} input_streams={self.input_streams}>'
 
-    def call_generator(self, dependencies, redis_conn: aioredis.Redis | redis.Redis):
+    def call_generator(self, dependencies,
+                       redis_conn: aioredis.Redis | redis.Redis):
         if self.pass_redis:
             return self.generator(**dependencies,
                                   **{k: redis_conn

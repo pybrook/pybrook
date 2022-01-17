@@ -143,7 +143,8 @@ class SyncStreamConsumer(BaseStreamConsumer):
                                                  stream, msg_id, payload,
                                                  redis_conn))
                     else:
-                        self._handle_message_sync(stream, msg_id, payload, redis_conn)
+                        self._handle_message_sync(stream, msg_id, payload,
+                                                  redis_conn)
                 if self._use_thread_executor:
                     for num, task in enumerate(futures.as_completed(tasks)):
                         task.result()

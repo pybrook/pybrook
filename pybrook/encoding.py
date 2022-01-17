@@ -17,4 +17,3 @@ def decode_stream_message(data: Dict[str, str]):
 
 def decode_value(v: Any):
     return orjson.loads(v)
-

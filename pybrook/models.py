@@ -6,17 +6,8 @@ from itertools import chain
 from pathlib import Path
 from time import time
 from typing import (  # noqa: WPS235
-    Any,
-    AsyncIterator,
-    Callable,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    get_type_hints,
+    Any, AsyncIterator, Callable, Dict, Generic, Iterable, List, Optional,
+    Type, TypeVar, Union, get_type_hints, Tuple, Sequence,
 )
 
 import aioredis
@@ -60,8 +51,21 @@ class Registrable:
         raise NotImplementedError
 
 
+DTYPE = TypeVar('DTYPE')
+
+
+def dependency(src: DTYPE) -> DTYPE:
+    return Dependency(src)  # type: ignore
+
+
+def historical_dependency(src: DTYPE, history_length: int) -> Sequence[DTYPE]:
+    return HistoricalDependency(src,  # type: ignore
+                                history_length=history_length)
+
+
 class Dependency(Registrable):
-    def __init__(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
+    def __init__(self, src: Union['SourceField', Type[aioredis.Redis],
+                                  Type[redis.Redis]]):
         self.is_aioredis: bool = False
         self.is_redis: bool = False
         self.src_field: Optional[SourceField] = self.validate_source_field(src)
@@ -71,8 +75,11 @@ class Dependency(Registrable):
     def value_type(self):
         return self.src_field.value_type
 
-    def validate_source_field(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
-        self.is_aioredis = type(src) == type and issubclass(src, aioredis.Redis)
+    def validate_source_field(self,
+                              src: Union['SourceField', Type[aioredis.Redis],
+                                         Type[redis.Redis]]):
+        self.is_aioredis = type(src) == type and issubclass(
+            src, aioredis.Redis)
         self.is_redis = type(src) == type and issubclass(src, redis.Redis)
         if isinstance(src, SourceField):
             return src
@@ -99,8 +106,9 @@ class Dependency(Registrable):
 
 
 class HistoricalDependency(Dependency):
-    def __init__(self, src_field: Union['SourceField', str], history_length: int):
-        super().__init__(src_field)
+    def __init__(self, src_field: Union['SourceField', str],
+                 history_length: int):
+        super().__init__(src_field)  # type: ignore
         self.history_length = history_length
         self.is_historical = True
 
@@ -108,7 +116,9 @@ class HistoricalDependency(Dependency):
     def value_type(self):
         return List[Union[self.src_field.value_type, None]]
 
-    def validate_source_field(self, src: Union['SourceField', Type[aioredis.Redis], Type[redis.Redis]]):
+    def validate_source_field(self,
+                              src: Union['SourceField', Type[aioredis.Redis],
+                                         Type[redis.Redis]]):
         if isinstance(src, str):
             return src
         return super().validate_source_field(src)
@@ -219,10 +229,11 @@ class InReport(ConsumerGenerator,
         @api.fastapi.post(f'/{cls._options.name}',
                           name=f'Add {cls._options.name}')
         async def add_report(
-                report: cls = fastapi.Body(...),  # type: ignore
+                report: pydantic.BaseModel = fastapi.Body(...),  # type: ignore
                 redis: aioredis.Redis = redis_dep):  # type: ignore
-            await redis.xadd(cls._options.stream_name,
-                             encode_stream_message(report.dict(by_alias=False)))
+            await redis.xadd(
+                cls._options.stream_name,
+                encode_stream_message(report.dict(by_alias=False)))
 
 
 @dataclasses.dataclass
@@ -292,8 +303,11 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
 
         @api.fastapi.on_event('startup')
         def startup():
-            api.fastapi.mount('/', StaticFiles(directory=str(Path(__file__).parent / 'frontend'), html=True),
-                               name='static')
+            api.fastapi.mount('/',
+                              StaticFiles(directory=str(
+                                  Path(__file__).parent / 'frontend'),
+                                          html=True),
+                              name='static')
             api.fastapi.state.socket_active = True
             signal.signal(signal.SIGINT, shutdown)
             signal.signal(signal.SIGTERM, shutdown)
@@ -329,7 +343,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                         last_msg, payload = m_data
                         try:
                             await websocket.send_text(
-                                model_cls(**decode_stream_message(payload)).json())
+                                model_cls(
+                                    **decode_stream_message(payload)).json())
                         except ConnectionClosedOK:
                             active = False
             try:
@@ -398,7 +413,6 @@ class InputField(SourceField):
 
 
 class ArtificialField(SourceField, Registrable, ConsumerGenerator):
-
     def __init__(self, calculate: Callable, name: str = None):
         annotations = get_type_hints(calculate)
         try:
@@ -424,11 +438,19 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
 
     @property
     def regular_dependencies(self) -> Dict[str, Dependency]:
-        return {k: d for k, d in self.dependencies.items() if not isinstance(d, HistoricalDependency)}
+        return {
+            k: d
+            for k, d in self.dependencies.items()
+            if not isinstance(d, HistoricalDependency)
+        }
 
     @property
     def historical_dependencies(self) -> Dict[str, HistoricalDependency]:
-        return {k: d for k, d in self.dependencies.items() if isinstance(d, HistoricalDependency)}
+        return {
+            k: d
+            for k, d in self.dependencies.items()
+            if isinstance(d, HistoricalDependency)
+        }
 
     def __call__(self, *args, **kwargs):
         return self.calculate(*args, **kwargs)
@@ -446,23 +468,23 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
                 DependencyResolver.Dep(src_stream=dep.src_field.stream_name,
                                        src_key=dep.src_field.field_name,
                                        dst_key=dep_key)
-                for dep_key, dep in self.regular_dependencies.items() if dep.src_field
+                for dep_key, dep in self.regular_dependencies.items()
+                if dep.src_field
             ],
             historical_dependencies=[
                 DependencyResolver.HistoricalDep(
                     src_stream=dep.src_field.stream_name,
                     src_key=dep.src_field.field_name,
                     dst_key=dep_key,
-                    history_length=dep.history_length
-                )
-                for dep_key, dep in self.historical_dependencies.items() if dep.src_field
+                    history_length=dep.history_length)
+                for dep_key, dep in self.historical_dependencies.items()
+                if dep.src_field
             ],
             resolver_name=f'{self.field_name}')
         model.add_consumer(dependency_resolver)
 
         field_generator_deps = [
-            BaseFieldGenerator.Dep(name=dep_name,
-                                   value_type=dep.value_type)
+            BaseFieldGenerator.Dep(name=dep_name, value_type=dep.value_type)
             for dep_name, dep in self.dependencies.items() if dep.src_field
         ]
 
@@ -520,8 +542,8 @@ class PyBrook:
     def __init__(self,
                  redis_url: str,
                  api_class: Type[PyBrookApi] = PyBrookApi):
-        self.inputs: Dict[str, Type[InReport, ConsumerGenerator]] = {}
-        self.outputs: Dict[str, Type[OutReport, ConsumerGenerator]] = {}
+        self.inputs: Dict[str, Type[ConsumerGenerator]] = {}
+        self.outputs: Dict[str, Type[ConsumerGenerator]] = {}
         self.artificial_fields: Dict[str, ArtificialField] = {}
         self.consumers: List[BaseStreamConsumer] = []
         self.redis_url: str = redis_url
@@ -554,15 +576,20 @@ class PyBrook:
         return FieldInfo(stream_name=field.destination_stream_name,
                          field_name=field.destination_field_name)
 
-    def set_meta(self, *, latitude_field: ReportField,
-                 longitude_field: ReportField, group_field: ReportField,
-                 time_field: ReportField, direction_field: ReportField = None):
+    def set_meta(self,
+                 *,
+                 latitude_field: ReportField,
+                 longitude_field: ReportField,
+                 group_field: ReportField,
+                 time_field: ReportField,
+                 direction_field: ReportField = None):
         self.api.schema.latitude_field = self._gen_field_info(latitude_field)
         self.api.schema.longitude_field = self._gen_field_info(longitude_field)
         self.api.schema.group_field = self._gen_field_info(group_field)
         self.api.schema.time_field = self._gen_field_info(time_field)
         if direction_field:
-            self.api.schema.direction_field = self._gen_field_info(direction_field)
+            self.api.schema.direction_field = self._gen_field_info(
+                direction_field)
 
     def input(
             self,  # noqa: A003

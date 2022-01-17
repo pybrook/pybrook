@@ -1,19 +1,16 @@
-import asyncio
 from datetime import datetime
-from math import atan2, pi, degrees
-from time import sleep
-from typing import List, Optional, Any, Tuple
+from math import atan2, degrees
+from typing import List, Optional, Sequence
 
-import aioredis
-import redis
 from pydantic import Field
 
 from pybrook.models import (
-    HistoricalDependency,
     InReport,
     OutReport,
     PyBrook,
-    ReportField, Dependency,
+    ReportField,
+    dependency,
+    historical_dependency,
 )
 
 brook = PyBrook('redis://localhost')
@@ -41,10 +38,13 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field('direction')
-async def direction(lat_history: List[float] = HistoricalDependency(ZTMReport.latitude, history_length=1),
-               lon_history: List[float] = HistoricalDependency(ZTMReport.longitude, history_length=1),
-               lat: float = Dependency(ZTMReport.latitude),
-               lon: float = Dependency(ZTMReport.longitude)) -> Optional[float]:
+async def direction(lat_history: Sequence[float] = historical_dependency(
+    ZTMReport.latitude, history_length=1),
+                    lon_history: Sequence[float] = historical_dependency(
+                        ZTMReport.longitude, history_length=1),
+                    lat: float = dependency(ZTMReport.latitude),
+                    lon: float = dependency(
+                        ZTMReport.longitude)) -> Optional[float]:
     if lat_history[-1] and lon_history[-1]:
         return degrees(atan2(lon - lon_history[-1], lat - lat_history[-1]))
     else:
