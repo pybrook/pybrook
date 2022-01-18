@@ -53,8 +53,8 @@ class BaseFieldGenerator(BaseStreamConsumer):
     def __repr__(self):
         return f'<{self.__class__.__name__} input_streams={self.input_streams}>'
 
-    def call_generator(self, dependencies,
-                       redis_conn: Union[aioredis.Redis, redis.Redis]):
+    def call_generator(self, dependencies, redis_conn: Union[aioredis.Redis,
+                                                             redis.Redis]):
         if self.pass_redis:
             return self.generator(**dependencies,
                                   **{k: redis_conn

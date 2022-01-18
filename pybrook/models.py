@@ -6,8 +6,20 @@ from itertools import chain
 from pathlib import Path
 from time import time
 from typing import (  # noqa: WPS235
-    Any, AsyncIterator, Callable, Dict, Generic, Iterable, List, Optional,
-    Type, TypeVar, Union, get_type_hints, Tuple, Sequence,
+    Any,
+    AsyncIterator,
+    Callable,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    get_type_hints,
 )
 
 import aioredis
@@ -59,8 +71,9 @@ def dependency(src: DTYPE) -> DTYPE:
 
 
 def historical_dependency(src: DTYPE, history_length: int) -> Sequence[DTYPE]:
-    return HistoricalDependency(src,  # type: ignore
-                                history_length=history_length)
+    return HistoricalDependency(
+        src,  # type: ignore
+        history_length=history_length)
 
 
 class Dependency(Registrable):
