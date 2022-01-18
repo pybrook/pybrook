@@ -229,7 +229,7 @@ class InReport(ConsumerGenerator,
         @api.fastapi.post(f'/{cls._options.name}',
                           name=f'Add {cls._options.name}')
         async def add_report(
-                report: pydantic.BaseModel = fastapi.Body(...),  # type: ignore
+                report: cls = fastapi.Body(...),  # type: ignore
                 redis: aioredis.Redis = redis_dep):  # type: ignore
             await redis.xadd(
                 cls._options.stream_name,
