@@ -1,0 +1,7 @@
+.venv/
+.mypy_cache/
+slideshows/
+thesis/
+.*
+pybrook-frontend/
+.pytest_cache/
