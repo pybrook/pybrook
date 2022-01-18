@@ -534,6 +534,7 @@ class PyBrookApi:
         await redis.connection_pool.disconnect()
 
     def visit(self, generator: RouteGenerator):
+        # TODO: proper visitor using singledispatchmethod
         generator.gen_routes(self,
                              redis_dep=fastapi.Depends(self.redis_dependency))
 
@@ -542,8 +543,8 @@ class PyBrook:
     def __init__(self,
                  redis_url: str,
                  api_class: Type[PyBrookApi] = PyBrookApi):
-        self.inputs: Dict[str, Type[ConsumerGenerator]] = {}
-        self.outputs: Dict[str, Type[ConsumerGenerator]] = {}
+        self.inputs: Dict[str, Type[InReport]] = {}
+        self.outputs: Dict[str, Type[OutReport]] = {}
         self.artificial_fields: Dict[str, ArtificialField] = {}
         self.consumers: List[BaseStreamConsumer] = []
         self.redis_url: str = redis_url

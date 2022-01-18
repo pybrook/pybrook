@@ -23,11 +23,10 @@ def main():
     modified = True
     while modified:
         brook = getattr(model_module,
-                        app_arg[1]) if len(app_arg) > 1 else getattr(
-                            model_module, 'brook')
+                        app_arg[1]) if len(app_arg) > 1 else model_module.brook
         handler = ModelChangeEventHandler(brook)
         observer = Observer()
-        observer.schedule(handler, model_module.__file__)
+        observer.schedule(handler, model_module.__file__)  # noqa: WPS609
         observer.start()
         brook.run()
         observer.stop()
