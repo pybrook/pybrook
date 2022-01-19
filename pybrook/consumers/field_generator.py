@@ -44,8 +44,8 @@ class BaseFieldGenerator(BaseStreamConsumer):
             **pydantic_fields  # type: ignore
         )
 
-        print('xyza', pydantic_fields)
         super().__init__(redis_url=redis_url,
+                         use_thread_executor=True,
                          consumer_group_name=field_name,
                          input_streams=[dependency_stream],
                          read_chunk_length=read_chunk_length)

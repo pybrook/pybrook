@@ -98,6 +98,7 @@ class WorkerManager:
             self._kill_on_terminate = True
 
     def run(self):
+        # TODO: accept CLI params here
         if self.processes:
             raise RuntimeError('Already running!')
         gears_consumers: Mapping[str,
