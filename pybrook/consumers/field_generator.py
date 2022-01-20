@@ -45,7 +45,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
         )
 
         super().__init__(redis_url=redis_url,
-                         use_thread_executor=True,
+                         use_thread_executor=False,
                          consumer_group_name=field_name,
                          input_streams=[dependency_stream],
                          read_chunk_length=read_chunk_length)

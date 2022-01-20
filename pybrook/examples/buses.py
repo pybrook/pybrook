@@ -12,8 +12,8 @@ app = brook.app
 class LocationReport(InReport):
     vehicle_id: int
     time: datetime
-    latitude: float
-    longitude: float
+    lat: float
+    lon: float
     temperature: int
     doors_open: bool
     speed: float
@@ -23,8 +23,8 @@ class LocationReport(InReport):
 def calc_course_id(
         *,
         vehicle_id: int = dependency(LocationReport.vehicle_id),
-        latitude: float = dependency(LocationReport.latitude),
-        longitude: float = dependency(LocationReport.longitude),
+        latitude: float = dependency(LocationReport.lat),
+        longitude: float = dependency(LocationReport.lon),
 ) -> float:
     return 1234
 
@@ -33,8 +33,8 @@ def calc_course_id(
 class CourseReport(OutReport):
     course_id = ReportField(calc_course_id)
     time = ReportField(LocationReport.time)
-    latitude = ReportField(LocationReport.latitude)
-    longitude = ReportField(LocationReport.longitude)
+    latitude = ReportField(LocationReport.lat)
+    longitude = ReportField(LocationReport.lon)
     temperature = ReportField(LocationReport.temperature)
     doors_open = ReportField(LocationReport.doors_open)
     speed = ReportField(LocationReport.speed)
@@ -43,8 +43,8 @@ class CourseReport(OutReport):
 @brook.output('test-report')
 class TestReport(OutReport):
     course_id = ReportField(LocationReport.speed)
-    latitude = ReportField(LocationReport.latitude)
-    longitude = ReportField(LocationReport.longitude)
+    latitude = ReportField(LocationReport.lat)
+    longitude = ReportField(LocationReport.lon)
 
 
 if __name__ == '__main__':

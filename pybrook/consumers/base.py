@@ -56,10 +56,9 @@ class BaseStreamConsumer:
                                     decode_responses=True)
         for stream in self.input_streams:
             try:
-                logger.error(self._consumer_group_name)
                 redis_conn.xgroup_create(stream,
                                          self._consumer_group_name,
-                                         id='0',
+                                         id='$',
                                          mkstream=True)
             except redis.ResponseError as e:
                 if 'BUSYGROUP' not in str(e):

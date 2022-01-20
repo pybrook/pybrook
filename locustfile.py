@@ -1,37 +1,58 @@
 from datetime import datetime
 from json import loads
 from time import sleep
+from typing import Dict, Tuple, List
 
-from locust import FastHttpUser, task
+from locust import FastHttpUser, task, between
+from datetime import datetime
 
 request_id = 0
 
 
-def init():
-    global data, time_ranges, time_diff
-    data = loads(open('records.json').read())
-    time_ranges = sorted([datetime.fromisoformat(d) for d in data.keys()])
-    time_diff = datetime.now() - time_ranges[0]
+def load_data() -> dict:
+    return loads(open('ztm_dump.json').read())
 
 
-data = {}
-time_ranges = []
-time_diff = None
+data = load_data()
+lines = list(sorted(data.keys()))
 
 
 class VehicleReportUser(FastHttpUser):
+    wait_time = between(1, 1)
+
+    def on_start(self):
+        self.line = lines.pop(0)
+        self.records: List[Tuple[datetime, dict]] = sorted([(datetime.fromisoformat(v['time']), v) for v in data[self.line]], key=lambda v: v[0])
+        self.current_record_id = 0
+        self.time_offset = None
+
+    def get_record(self):
+        if self.time_offset is None:
+            self.time_offset = datetime.now() - self.records[0][0]
+        now = datetime.now()
+        time_a: datetime = None
+        time_b: datetime = None
+        for ((time_a, record_a), (time_b, record_b)) in zip(self.records[self.current_record_id:-1], self.records[self.current_record_id + 1:]):
+            time_a = time_a + self.time_offset
+            time_b = time_b + self.time_offset
+            if time_b <= now:
+                self.current_record_id += 1
+            else:
+                break
+        else:
+            self.time_offset = None
+            self.current_record_id = 0
+            return self.get_record()
+
+        diff = (time_b - time_a).total_seconds()
+        pos = (now - time_a).total_seconds() / diff
+        lat_diff = record_b['lat'] - record_a['lat']
+        lon_diff = record_b['lon'] - record_a['lon']
+        cur_lon = record_a['lon'] + lon_diff * pos
+        cur_lat = record_a['lat'] + lat_diff * pos
+        record = {**record_b, 'time': now.isoformat(), 'lon': cur_lon, 'lat': cur_lat}
+        return record
 
     @task
     def send_vehicle_report(self):
-        if not time_ranges:
-            init()
-        if time_ranges[0] + time_diff > datetime.now():
-            sleep(0.1)
-            return
-        while not (reports_for_range := data[time_ranges[0].isoformat()]):
-            time_ranges.pop(0)
-
-        req = reports_for_range.pop(0)
-        req['time'] = (datetime.fromisoformat(req['time']) + time_diff).isoformat()
-        print(req['time'])
-        self.client.post("/ztm-report", json=req)
+        self.client.post("/ztm-report", json=self.get_record())
