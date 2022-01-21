@@ -517,7 +517,7 @@ class PyBrookApi:
         @self.fastapi.on_event('startup')
         def startup():
             print(str(Path(__file__).parent / 'frontend'))
-            self.fastapi.mount('/index.html',
+            self.fastapi.mount('/panel/',
                                StaticFiles(directory=str(
                                    Path(__file__).parent / 'frontend'),
                                            html=True),
