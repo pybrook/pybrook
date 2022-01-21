@@ -27,7 +27,7 @@
     });
     onDestroy(unsubscribe)
 </script>
-<Accordion groupKeys>
+<Accordion>
     {#each Array.from(groupKeys).sort() as group (group)}
         <AccordionItem title="{group}" bind:open={openGroups[group]}>
             {#if openGroups[group]}

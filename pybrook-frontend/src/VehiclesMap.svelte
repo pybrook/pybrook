@@ -20,9 +20,10 @@
     $: {
         if ($configStore) {
             vehicleIdToGroup = {};
-            vehiclePositions = new Set();
+            vehiclePositions = {};
             selected = null;
             vehiclesInViewPort = [];
+            vehicleDirections = {};
         }
     }
     const unsubscribe = genericReportStore.subscribe((msg) => {

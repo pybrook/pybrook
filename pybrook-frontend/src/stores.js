@@ -59,7 +59,7 @@ configStore.subscribe((config) => {
         socket.addEventListener('close', (data) => {
             if(closed) return;
             closed = true;
-            loadConfig();
+            setTimeout(loadConfig, 1000);
         });
     })
 
@@ -67,7 +67,15 @@ configStore.subscribe((config) => {
 
 
 function loadConfig() {
-    fetch(`${apiHttpUrl}/pybrook-schema.json`).then(res => res.json()).then((json) => configStore.set(json)).catch((err) => setTimeout(loadConfig, 1000))
+    fetch(`${apiHttpUrl}/pybrook-schema.json`).then(res => res.json()).then(
+        (json) => {
+            if(json.streams && json.group_field) {
+                configStore.set(json);
+            } else {
+                setTimeout(loadConfig, 1000)
+            }
+        }
+    ).catch((err) => setTimeout(loadConfig, 1000))
 }
 
 loadConfig();
