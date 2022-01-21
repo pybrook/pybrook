@@ -4,6 +4,7 @@ import signal
 from collections import defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Tuple, Union
 
+import uvloop
 from loguru import logger
 from redis import Redis
 
@@ -25,12 +26,8 @@ class Worker:
     def run_sync(self, *, processes_num: int = DEFAULT_PROCESSES_NUM):
         return self._spawn_sync(processes_num=processes_num)
 
-    def run_async(self,
-                  *,
-                  processes_num: int = DEFAULT_PROCESSES_NUM,
-                  coroutines_num: int = 8):
-        return self._spawn_async(processes_num=processes_num,
-                                 coroutines_num=coroutines_num)
+    def run_async(self, *, processes_num: int = DEFAULT_PROCESSES_NUM):
+        return self._spawn_async(processes_num=processes_num)
 
     def _spawn_sync(self,
                     processes_num: int) -> Iterable[multiprocessing.Process]:
@@ -38,16 +35,13 @@ class Worker:
             target=self._consumer.run_sync,  # type: ignore
             processes_num=processes_num)
 
-    def _async_wrapper(self, coroutines_num: int):
-        policy = asyncio.get_event_loop_policy()
+    def _async_wrapper(self):
+        policy = uvloop.EventLoopPolicy()
+        asyncio.set_event_loop_policy(policy)
         asyncio.set_event_loop(policy.new_event_loop())
-        coroutines = [
-            self._consumer.run_async()  # type: ignore
-            for _ in range(coroutines_num)
-        ]
         try:
             asyncio.get_event_loop().run_until_complete(
-                asyncio.gather(*coroutines))
+                self._consumer.run_async())
         except KeyboardInterrupt:
             pass
         except RuntimeError as e:
@@ -56,10 +50,9 @@ class Worker:
         except asyncio.CancelledError:
             ...  # This is fine, shouldn't break anything
 
-    def _spawn_async(self, *, processes_num: int,
-                     coroutines_num: int) -> Iterable[multiprocessing.Process]:
+    def _spawn_async(self, *,
+                     processes_num: int) -> Iterable[multiprocessing.Process]:
         return self._spawn(target=self._async_wrapper,
-                           args=(coroutines_num, ),
                            processes_num=processes_num)
 
     def _spawn(
@@ -115,7 +108,7 @@ class WorkerManager:
             if isinstance(c, SyncStreamConsumer):
                 procs = w.run_sync(processes_num=8)
             elif isinstance(c, AsyncStreamConsumer):
-                procs = w.run_async(processes_num=8, coroutines_num=8)
+                procs = w.run_async(processes_num=8)
             else:
                 raise NotImplementedError(c)
             self.processes.extend(procs)
