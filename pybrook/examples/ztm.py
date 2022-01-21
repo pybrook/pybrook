@@ -1,6 +1,8 @@
-from datetime import datetime
+import asyncio
+from datetime import datetime, timedelta
 from math import atan2, degrees
-from typing import List, Optional, Sequence, Any
+from time import sleep
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 from pydantic import Field
 
@@ -43,32 +45,17 @@ async def direction(lat_history: Sequence[float] = historical_dependency(
                     lon_history: Sequence[float] = historical_dependency(
                         ZTMReport.lon, history_length=1),
                     lat: float = dependency(ZTMReport.lat),
-                    lon: float = dependency(
-                        ZTMReport.lon)) -> Optional[float]:
-    if lat_history[-1] and lon_history[-1]:
-        return degrees(atan2(lon - lon_history[-1], lat - lat_history[-1]))
+                    lon: float = dependency(ZTMReport.lon)) -> Optional[float]:
+    prev_lat, = lat_history
+    prev_lon, = lon_history
+    if prev_lat and prev_lon:
+        return degrees(atan2(lon - prev_lon, lat - prev_lat))
     else:
         return None
 
 
-@brook.artificial_field('latency1')
-def latency1(time: datetime = dependency(ZTMReport.time)) -> datetime:
-    return datetime.now()
-
-
-@brook.artificial_field('latency2')
-def latency2(time: datetime = dependency(ZTMReport.time), lat1: datetime = dependency(latency1)) -> datetime:
-    return lat1
-
-
-@brook.artificial_field('latency4')
-def latency4(time: datetime = dependency(ZTMReport.time), lat2: datetime = dependency(latency2), direction: Any = dependency(direction)) -> str:
-    return str((datetime.now() - lat2, direction))
-
-
-@brook.output('raport2')
-class PosReport(OutReport):
-    latency2 = ReportField(latency4)
+@brook.output('direction-report')
+class DirectionReport(OutReport):
     lat = ReportField(ZTMReport.lat)
     long = ReportField(ZTMReport.lon)
     direction = ReportField(direction)
@@ -77,5 +64,4 @@ class PosReport(OutReport):
 brook.set_meta(latitude_field=LocationReport.lat,
                longitude_field=LocationReport.lon,
                group_field=LocationReport.line,
-               direction_field=PosReport.direction,
                time_field=LocationReport.time)

@@ -27,7 +27,7 @@ from pybrook.consumers.field_generator import (
     BaseFieldGenerator,
     SyncFieldGenerator,
 )
-from pybrook.consumers.splitter import GearsSplitter
+from pybrook.consumers.splitter import Splitter
 from pybrook.consumers.worker import WorkerManager
 from pybrook.encoding import decode_stream_message, encode_stream_message
 from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
@@ -222,11 +222,11 @@ class InReport(ConsumerGenerator,
                metaclass=InReportMeta):
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
-        splitter = GearsSplitter(redis_url=model.redis_url,
-                                 object_id_field=cls._options.id_field,
-                                 consumer_group_name=cls._options.name,
-                                 namespace=cls._options.name,
-                                 input_streams=[cls._options.stream_name])
+        splitter = Splitter(redis_url=model.redis_url,
+                            object_id_field=cls._options.id_field,
+                            consumer_group_name=cls._options.name,
+                            namespace=cls._options.name,
+                            input_streams=[cls._options.stream_name])
         model.add_consumer(splitter)
 
     @classmethod
@@ -517,7 +517,7 @@ class PyBrookApi:
         @self.fastapi.on_event('startup')
         def startup():
             print(str(Path(__file__).parent / 'frontend'))
-            self.fastapi.mount('/',
+            self.fastapi.mount('/index.html',
                                StaticFiles(directory=str(
                                    Path(__file__).parent / 'frontend'),
                                            html=True),
