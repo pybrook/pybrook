@@ -29,7 +29,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
                  dependency_stream: str,
                  dependencies: List[Dep],
                  pass_redis: List[str] = None,
-                 read_chunk_length: int = 100):
+                 read_chunk_length: int = 200):
         self.generator = generator
         self.dependencies = dependencies
         self.field_name = field_name
@@ -45,7 +45,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
         )
 
         super().__init__(redis_url=redis_url,
-                         use_thread_executor=False,
+                         use_thread_executor=True,
                          consumer_group_name=field_name,
                          input_streams=[dependency_stream],
                          read_chunk_length=read_chunk_length)
@@ -72,7 +72,7 @@ class AsyncFieldGenerator(AsyncStreamConsumer, BaseFieldGenerator):
         message_id = message.pop(MSG_ID_FIELD)
         try:
             dependencies = self.dep_model(**message).dict()
-        except Exception as e:
+        except Exception:
             raise ValueError(message)
         value = await self.call_generator(dependencies, redis_conn)
         return {
@@ -91,7 +91,10 @@ class SyncFieldGenerator(SyncStreamConsumer, BaseFieldGenerator):
             pipeline: redis.client.Pipeline) -> Dict[str, Dict[str, str]]:
         message = decode_stream_message(message)
         message_id = message.pop(MSG_ID_FIELD)
-        dependencies = self.dep_model(**message).dict()
+        try:
+            dependencies = self.dep_model(**message).dict()
+        except Exception:
+            raise ValueError(message)
         value = self.call_generator(dependencies, redis_conn)
         return {
             self.output_stream_name:
