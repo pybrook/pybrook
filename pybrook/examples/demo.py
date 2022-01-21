@@ -57,7 +57,7 @@ class DirectionReport(OutReport):
 
 
 @brook.artificial_field()
-def counter(
+async def counter(
     prev_values: Sequence[int] = historical_dependency(
         'counter', history_length=1
     ),
