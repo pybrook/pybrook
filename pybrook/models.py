@@ -6,20 +6,8 @@ from itertools import chain
 from pathlib import Path
 from time import time
 from typing import (  # noqa: WPS235
-    Any,
-    AsyncIterator,
-    Callable,
-    Dict,
-    Generic,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    get_type_hints,
+    Any, AsyncIterator, Callable, Dict, Generic, Iterable, List, Optional,
+    Sequence, Tuple, Type, TypeVar, Union, get_type_hints,
 )
 
 import aioredis
@@ -67,13 +55,17 @@ DTYPE = TypeVar('DTYPE')
 
 
 def dependency(src: DTYPE) -> DTYPE:
-    return Dependency(src)  # type: ignore
+    dep: DTYPE
+    dep = Dependency(src)  # type: ignore
+    return dep
 
 
 def historical_dependency(src: DTYPE, history_length: int) -> Sequence[DTYPE]:
-    return HistoricalDependency(
+    dep: Sequence[DTYPE]
+    dep = HistoricalDependency(  # type: ignore
         src,  # type: ignore
         history_length=history_length)
+    return dep
 
 
 class Dependency(Registrable):
@@ -314,21 +306,6 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                 return model_cls(**decode_stream_message(msg_body))
             return {}
 
-        @api.fastapi.on_event('startup')
-        def startup():
-            api.fastapi.mount('/',
-                              StaticFiles(directory=str(
-                                  Path(__file__).parent / 'frontend'),
-                                          html=True),
-                              name='static')
-            api.fastapi.state.socket_active = True
-            signal.signal(signal.SIGINT, shutdown)
-            signal.signal(signal.SIGTERM, shutdown)
-
-        def shutdown(*args):
-            logger.info('set socket active to false')
-            api.fastapi.state.socket_active = False
-
         @api.fastapi.websocket(f'/{cls._options.name}')
         async def read_reports(websocket: fastapi.WebSocket,
                                redis: aioredis.Redis = redis_dep):
@@ -537,6 +514,22 @@ class PyBrookApi:
         def get_schema():
             return self.schema
 
+        @self.fastapi.on_event('startup')
+        def startup():
+            print(str(Path(__file__).parent / 'frontend'))
+            self.fastapi.mount('/',
+                               StaticFiles(directory=str(
+                                   Path(__file__).parent / 'frontend'),
+                                           html=True),
+                               name='static')
+            self.fastapi.state.socket_active = True
+            signal.signal(signal.SIGINT, shutdown)
+            signal.signal(signal.SIGTERM, shutdown)
+
+        def shutdown(*args):
+            logger.info('set socket active to false')
+            self.fastapi.state.socket_active = False
+
     async def redis_dependency(self) -> AsyncIterator[aioredis.Redis]:
         """Redis FastAPI Dependency"""
         redis = await aioredis.from_url(self.brook.redis_url,
@@ -629,10 +622,8 @@ class PyBrook:
 
         return wrapper
 
-    def artificial_field(self,
-                         name: str = None
-                         ) -> Callable[[Callable], ArtificialField]:
-        def wrapper(fun: Callable) -> ArtificialField:
+    def artificial_field(self, name: str = None) -> Callable[[Callable], Any]:
+        def wrapper(fun: Callable) -> Any:
             field = ArtificialField(fun, name=name)
             self.artificial_fields[name or fun.__name__] = field
             field.on_registered(self)
