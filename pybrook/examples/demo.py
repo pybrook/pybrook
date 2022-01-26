@@ -74,7 +74,6 @@ async def counter(
 class CounterReport(OutReport):
     counter = ReportField(counter)
 
-
 brook.set_meta(
     latitude_field=LocationReport.lat,
     longitude_field=LocationReport.lon,

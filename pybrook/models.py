@@ -7,7 +7,7 @@ from pathlib import Path
 from time import time
 from typing import (  # noqa: WPS235
     Any, AsyncIterator, Callable, Dict, Generic, Iterable, List, Optional,
-    Sequence, Tuple, Type, TypeVar, Union, get_type_hints,
+    Sequence, Tuple, Type, TypeVar, Union, get_type_hints, Mapping,
 )
 
 import aioredis
@@ -162,6 +162,30 @@ class SourceField:
                f' value_type={self.value_type.__name__}>'
 
 
+class ReportField:
+    def __init__(self, source_field: Union[SourceField, Any]):
+        if not isinstance(source_field, SourceField):
+            raise RuntimeError(f'{source_field} is not a SourceField')
+        self.destination_field_name: str
+        self.source_field = source_field
+        self.owner: Type[OutReport]
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} ' \
+               f'destination_field_name=\'{self.destination_field_name}\' ' \
+               f'source_field={self.source_field} ' \
+               f'owner={self.owner}>'
+
+    @property
+    def destination_stream_name(self):
+        return self.owner.stream_name
+
+    def set_context(self, owner: Type['OutReport'], name: str):
+        self.owner = owner
+        self.destination_field_name = name
+
+
+
 @dataclasses.dataclass
 class InReportOptions:
     id_field: str
@@ -220,6 +244,7 @@ class InReport(ConsumerGenerator,
                RouteGenerator,
                pydantic.BaseModel,
                metaclass=InReportMeta):
+
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
         splitter = Splitter(redis_url=model.redis_url,
@@ -251,15 +276,37 @@ class OutReportOptions:
 
 
 class OutReportMeta(OptionsMixin[OutReportOptions], type):
+    _report_fields: Mapping[str, 'ReportField']
+    _model: Type[pydantic.BaseModel]
+    _options: OutReportOptions
+
     def _validate_options(self, options: OutReportOptions) -> OutReportOptions:
         return options
 
-    @property  # type: ignore
-    def report_fields(cls) -> List['ReportField']:
-        return [
-            m[1] for m in inspect.getmembers(cls)
-            if isinstance(m[1], ReportField)
-        ]
+    def __new__(mcs, name, bases, namespace):
+        cls = super().__new__(mcs, name, bases, namespace)
+        cls._report_fields = dict()
+        for name, report_field in inspect.getmembers(cls):
+            if isinstance(report_field, ReportField):
+                report_field.set_context(cls, name)
+                cls._report_fields[name] = report_field
+        pydantic_fields = {
+            report_field.destination_field_name:
+            (report_field.source_field.value_type, pydantic.Field())
+            for report_field in cls._report_fields.values()  # type: ignore
+        }
+        pydantic_fields[MSG_ID_FIELD] = (
+            str,
+            pydantic.Field(
+                title='Message ID',
+                description=
+                f'Message id - {{object ID}}{SPECIAL_CHAR}{{msg index for object}}'
+            ))
+        cls._model = pydantic.create_model(
+            cls.__name__ + 'Model',
+            **pydantic_fields  # type: ignore
+        )
+        return cls
 
     @property
     def stream_name(cls):
@@ -270,7 +317,7 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
         pydantic_fields = {
             report_field.destination_field_name:
             (report_field.source_field.value_type, pydantic.Field())
-            for report_field in cls.report_fields  # type: ignore
+            for report_field in cls._report_fields.values()  # type: ignore
         }
         pydantic_fields[MSG_ID_FIELD] = (
             str,
@@ -288,8 +335,6 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
 
 
 class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
-    _options: OutReportOptions
-    report_fields: List['ReportField']
 
     @classmethod
     def gen_routes(cls, api: 'PyBrookApi', redis_dep: aioredis.Redis):
@@ -358,40 +403,10 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                     src_stream=field.source_field.stream_name,
                     src_key=field.source_field.field_name,
                     dst_key=field.destination_field_name)
-                for field in cls.report_fields
+                for field in cls._report_fields.values()
             ],
             resolver_name=f'{cls._options.name}')
         model.add_consumer(dependency_resolver)
-
-
-class ReportField:
-    def __init__(self, source_field: Union[SourceField, Any]):
-        if not isinstance(source_field, SourceField):
-            raise RuntimeError(f'{source_field} is not a SourceField')
-        self.destination_field_name: str
-        self.source_field = source_field
-        self._owner: Type[OutReport]
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__} ' \
-               f'destination_field_name=\'{self.destination_field_name}\' ' \
-               f'source_field={self.source_field} ' \
-               f'owner={self.owner}>'
-
-    @property
-    def owner(self) -> Type[OutReport]:
-        return self._owner
-
-    @property
-    def destination_stream_name(self):
-        return self._owner.stream_name
-
-    def __set_name__(self, owner: Type[OutReport], name: str):
-        self._owner = owner
-        self.destination_field_name = name
-
-    def __get__(self, instance, owner: Type[OutReport]):
-        return self
 
 
 class InputField(SourceField):
