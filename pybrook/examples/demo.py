@@ -37,7 +37,7 @@ class LocationReport(OutReport):
 
 
 @brook.artificial_field()
-async def direction(lat_history: Sequence[float] = historical_dependency(
+def direction(lat_history: Sequence[float] = historical_dependency(
     ZTMReport.lat, history_length=1),
                     lon_history: Sequence[float] = historical_dependency(
                         ZTMReport.lon, history_length=1),
