@@ -22,13 +22,15 @@ class BaseSplitter(BaseStreamConsumer):
                  input_streams: Iterable[str],
                  object_id_field: str,
                  namespace: str,
-                 read_chunk_length: int = 100):
+                 read_chunk_length: int = 100,
+                 **kwargs):
         self.namespace: str = namespace
         self.object_id_field: str = object_id_field
         super().__init__(redis_url=redis_url,
                          consumer_group_name=consumer_group_name,
                          input_streams=input_streams,
-                         read_chunk_length=read_chunk_length)
+                         read_chunk_length=read_chunk_length,
+                         **kwargs)
 
     def split_msg(self, message: Dict[str, str], *, obj_id: str,
                   obj_msg_id: str):
@@ -81,8 +83,8 @@ def process_message(msg):
 
 for s in {self.input_streams}:
     GearsBuilder("StreamReader").foreach(process_message).register(s, trimStream=False, mode="sync")'''
-        pipeline.execute_command('RG.PYEXECUTE', cmd)
-        logger.info(f'Registered Redis Gears Reader: \n{cmd}')
+        out = pipeline.execute_command('RG.PYEXECUTE', cmd)
+        logger.info(f'Registered Redis Gears Reader: \n{cmd}\n{out}')
 
 
 class Splitter(GearsSplitter, AsyncSplitter, SyncSplitter,

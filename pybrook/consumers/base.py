@@ -1,10 +1,12 @@
 import asyncio
+import re
 import secrets
 import signal
 import sys
 from concurrent import futures
 from enum import Enum
-from typing import Dict, Iterable, List, MutableMapping, Set, Tuple
+from time import time
+from typing import Dict, Iterable, List, MutableMapping, Set, Tuple, Union
 
 import aioredis
 import redis
@@ -26,7 +28,8 @@ class BaseStreamConsumer:
                  consumer_group_name: str,
                  input_streams: Iterable[str],
                  use_thread_executor: bool = False,
-                 read_chunk_length: int = 1):
+                 read_chunk_length: int = 1,
+                 read_messages_since: Union[str, int] = '$'):
         self._consumer_group_name = consumer_group_name
         self._redis_url = redis_url
         self._active = False
@@ -34,6 +37,10 @@ class BaseStreamConsumer:
         self._read_chunk_length = read_chunk_length
         self.executor = None
         self.input_streams = tuple(input_streams)
+        if not re.match(r'\$|\d+(?:-\d+)?', str(read_messages_since)):
+            raise ValueError(
+                'read_messages_since should be a positive integer or $!')
+        self.read_messages_since = str(read_messages_since)
 
     @property
     def supported_impl(self) -> Set[ConsumerImpl]:
@@ -58,7 +65,7 @@ class BaseStreamConsumer:
             try:
                 redis_conn.xgroup_create(stream,
                                          self._consumer_group_name,
-                                         id='$',
+                                         id=self.read_messages_since,
                                          mkstream=True)
             except redis.ResponseError as e:
                 if 'BUSYGROUP' not in str(e):

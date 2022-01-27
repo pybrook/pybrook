@@ -29,7 +29,8 @@ class BaseFieldGenerator(BaseStreamConsumer):
                  dependency_stream: str,
                  dependencies: List[Dep],
                  pass_redis: List[str] = None,
-                 read_chunk_length: int = 200):
+                 read_chunk_length: int = 200,
+                 **kwargs):
         self.generator = generator
         self.dependencies = dependencies
         self.field_name = field_name
@@ -48,7 +49,8 @@ class BaseFieldGenerator(BaseStreamConsumer):
                          use_thread_executor=True,
                          consumer_group_name=field_name,
                          input_streams=[dependency_stream],
-                         read_chunk_length=read_chunk_length)
+                         read_chunk_length=read_chunk_length,
+                         **kwargs)
 
     def __repr__(self):
         return f'<{self.__class__.__name__} input_streams={self.input_streams}>'

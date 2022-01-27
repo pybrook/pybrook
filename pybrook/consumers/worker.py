@@ -4,9 +4,9 @@ import signal
 from collections import defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Tuple, Union
 
+import redis
 import uvloop
 from loguru import logger
-from redis import Redis
 
 from pybrook.consumers.base import (
     AsyncStreamConsumer,
@@ -113,10 +113,10 @@ class WorkerManager:
                 raise NotImplementedError(c)
             self.processes.extend(procs)
         for redis_url, consumers in dict(gears_consumers).items():
-            redis = Redis.from_url(redis_url,
-                                   decode_responses=True,
-                                   encoding='utf-8')
-            with redis.pipeline() as p:
+            redis_conn = redis.from_url(redis_url,
+                                        decode_responses=True,
+                                        encoding='utf-8')
+            with redis_conn.pipeline() as p:
                 p.watch('RG.REGISTERLOCK')
                 if p.exists('RG.REGISTERLOCK'):
                     raise RuntimeError(
@@ -126,12 +126,15 @@ class WorkerManager:
                 p.set('RG.REGISTERLOCK', '1')
                 p.expire('RG.REGISTERLOCK', '5')
                 p.execute(raise_on_error=True)
-            ids = [r[1] for r in redis.execute_command('RG.DUMPREGISTRATIONS')]
+            ids = [
+                r[1]
+                for r in redis_conn.execute_command('RG.DUMPREGISTRATIONS')
+            ]
             for i in ids:
-                redis.execute_command('RG.UNREGISTER', i)
+                redis_conn.execute_command('RG.UNREGISTER', i)
             for c in consumers:
-                c.register_builder(redis)
-            redis.delete('RG.REGISTERLOCK')
+                c.register_builder(redis_conn)
+            redis_conn.delete('RG.REGISTERLOCK')
         for proc in self.processes:
             try:
                 proc.join()

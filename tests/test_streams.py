@@ -12,54 +12,12 @@ import redis
 from loguru import logger
 
 from pybrook.config import MSG_ID_FIELD
-from pybrook.consumers.base import (
-    AsyncStreamConsumer,
-    BaseStreamConsumer,
-    ConsumerImpl,
-    SyncStreamConsumer,
-)
+from pybrook.consumers.base import AsyncStreamConsumer, ConsumerImpl, SyncStreamConsumer
 from pybrook.consumers.dependency_resolver import DependencyResolver
 from pybrook.consumers.splitter import AsyncSplitter, Splitter, SyncSplitter
 from pybrook.consumers.worker import Worker
 from pybrook.encoding import decode_value
-
-TEST_REDIS_URI = 'redis://localhost/13?decode_responses=1'
-
-
-@pytest.fixture
-def replace_process_with_thread(monkeypatch):
-    monkeypatch.setattr(multiprocessing, 'Process', threading.Thread)
-    monkeypatch.setattr(signal, 'signal', lambda *args: None)
-
-
-@pytest.fixture
-def limit_time(monkeypatch):
-    from time import time
-    t = time()
-    monkeypatch.setattr(
-        BaseStreamConsumer, 'active',
-        property(fget=lambda s: time() < t + 1, fset=lambda s, v: None))
-
-
-@pytest.fixture
-@pytest.mark.asyncio
-async def redis_async():
-    redis_async: aioredis.Redis = await aioredis.from_url(
-        TEST_REDIS_URI, decode_responses=True)
-    await redis_async.flushdb()
-    yield redis_async
-    await redis_async.flushdb()
-    await redis_async.close()
-    await redis_async.connection_pool.disconnect()
-
-
-@pytest.fixture
-def redis_sync():
-    redis_sync: redis.Redis = redis.from_url(TEST_REDIS_URI,
-                                             decode_responses=True)
-    redis_sync.flushdb()
-    yield redis_sync
-    redis_sync.close()
+from tests.conftest import TEST_REDIS_URI
 
 
 def write_test_reports(redis_sync: redis.Redis,
@@ -95,8 +53,7 @@ def test_dependency(redis_sync) -> List[Dict[str, str]]:
 
 
 @pytest.mark.parametrize('mode', ('sync', 'async'))
-def test_worker(test_input, redis_sync, mode, limit_time,
-                replace_process_with_thread):
+def test_worker(test_input, redis_sync, mode, limit_time, mock_processes):
     messages = multiprocessing.Manager().list()
     random.seed(16)
 
@@ -122,6 +79,7 @@ def test_worker(test_input, redis_sync, mode, limit_time,
     worker = Worker(
         TestConsumer(input_streams=['test_input'],
                      read_chunk_length=1,
+                     read_messages_since=0,
                      consumer_group_name='test_consumer',
                      redis_url=TEST_REDIS_URI))
     if mode == 'async':
@@ -139,10 +97,11 @@ def test_worker(test_input, redis_sync, mode, limit_time,
 
 @pytest.mark.asyncio
 async def test_splitter_async(redis_async: aioredis.Redis, test_input,
-                              replace_process_with_thread, limit_time):
+                              mock_processes, limit_time):
     splitter = AsyncSplitter(consumer_group_name='splitter',
                              object_id_field='vehicle_id',
                              namespace='test',
+                             read_messages_since='0',
                              redis_url=TEST_REDIS_URI,
                              input_streams=['test_input'])
     splitter.register_consumer()
@@ -166,9 +125,10 @@ async def test_splitter_async(redis_async: aioredis.Redis, test_input,
 
 
 def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
-                       replace_process_with_thread):
+                       mock_processes):
     splitter = SyncSplitter(consumer_group_name='splitter',
                             namespace='test',
+                            read_messages_since=0,
                             object_id_field='vehicle_id',
                             redis_url=TEST_REDIS_URI,
                             input_streams=['test_input'])
@@ -194,7 +154,7 @@ def test_splitter_sync(redis_sync: redis.Redis, test_input, limit_time,
 
 
 def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
-                                  limit_time, replace_process_with_thread):
+                                  limit_time, mock_processes):
     resolver = DependencyResolver(resolver_name='ab_resolver',
                                   dependencies=[
                                       DependencyResolver.Dep(src_stream=':a',
@@ -204,6 +164,7 @@ def test_dependency_resolver_sync(redis_sync: redis.Redis, test_dependency,
                                                              src_key='b',
                                                              dst_key='b'),
                                   ],
+                                  read_messages_since=0,
                                   redis_url=TEST_REDIS_URI)
     resolver.register_consumer()
     ps = []
@@ -228,6 +189,7 @@ def test_perf(test_input_perf, redis_sync):
                         object_id_field='vehicle_id',
                         namespace='test_perf',
                         read_chunk_length=10,
+                        read_messages_since=0,
                         input_streams=['test_input'])
     repr(splitter)
     resolver = DependencyResolver(

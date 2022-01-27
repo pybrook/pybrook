@@ -10,7 +10,7 @@ lint:
 
 .PHONY: test
 test:
-	poetry run pytest --cov=./pybrook -vvv --cov-report term-missing
+	poetry run pytest --cov=./pybrook -vvv --cov-report html
 
 .PHONY: build_docs
 build_docs:

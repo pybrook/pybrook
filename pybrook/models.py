@@ -6,8 +6,8 @@ from itertools import chain
 from pathlib import Path
 from time import time
 from typing import (  # noqa: WPS235
-    Any, AsyncIterator, Callable, Dict, Generic, Iterable, List, Optional,
-    Sequence, Tuple, Type, TypeVar, Union, get_type_hints, Mapping,
+    Any, AsyncIterator, Callable, Dict, Generic, Iterable, List, Mapping,
+    Optional, Sequence, Tuple, Type, TypeVar, Union, get_type_hints,
 )
 
 import aioredis
@@ -185,7 +185,6 @@ class ReportField:
         self.destination_field_name = name
 
 
-
 @dataclasses.dataclass
 class InReportOptions:
     id_field: str
@@ -244,7 +243,6 @@ class InReport(ConsumerGenerator,
                RouteGenerator,
                pydantic.BaseModel,
                metaclass=InReportMeta):
-
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
         splitter = Splitter(redis_url=model.redis_url,
@@ -335,7 +333,6 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
 
 
 class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
-
     @classmethod
     def gen_routes(cls, api: 'PyBrookApi', redis_dep: aioredis.Redis):
         model_cls = cls.model
@@ -531,7 +528,6 @@ class PyBrookApi:
 
         @self.fastapi.on_event('startup')
         def startup():
-            print(str(Path(__file__).parent / 'frontend'))
             self.fastapi.mount('/panel/',
                                StaticFiles(directory=str(
                                    Path(__file__).parent / 'frontend'),

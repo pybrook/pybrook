@@ -31,7 +31,8 @@ class DependencyResolver(SyncStreamConsumer):
                  output_stream_name: str = None,
                  dependencies: List[Dep],
                  historical_dependencies: List[HistoricalDep] = None,
-                 read_chunk_length: int = 100):
+                 read_chunk_length: int = 100,
+                 **kwargs):
         """
 
         Args:
@@ -58,7 +59,8 @@ class DependencyResolver(SyncStreamConsumer):
         super().__init__(redis_url=redis_url,
                          consumer_group_name=resolver_name,
                          input_streams=input_streams,
-                         read_chunk_length=read_chunk_length)
+                         read_chunk_length=read_chunk_length,
+                         **kwargs)
 
     def __repr__(self):
         return f'<{self.__class__.__name__} output_stream_name=\'{self.output_stream_name}\'' \
