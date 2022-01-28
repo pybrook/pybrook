@@ -1,10 +1,10 @@
 import argparse
 import sys
 from importlib import import_module, reload
-from typing import Union, Any, List, Tuple
+from typing import Any, List, Tuple, Union
 
 from loguru import logger
-from watchdog.events import FileSystemEventHandler, FileModifiedEvent, DirModifiedEvent
+from watchdog.events import DirModifiedEvent, FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from pybrook.consumers.base import GearsStreamConsumer
@@ -62,8 +62,9 @@ def main():
     modified = True
     workers_config = dict()
     while modified:
-        brook: PyBrook = getattr(model_module,
-                        app_arg[1]) if len(app_arg) > 1 else model_module.brook
+        brook: PyBrook = getattr(
+            model_module,
+            app_arg[1]) if len(app_arg) > 1 else model_module.brook
         brook.process_model()
         for c in brook.consumers:
             if not isinstance(c, GearsStreamConsumer):

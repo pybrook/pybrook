@@ -29,7 +29,7 @@ from pybrook.consumers.field_generator import (
     SyncFieldGenerator,
 )
 from pybrook.consumers.splitter import Splitter
-from pybrook.consumers.worker import WorkerManager, ConsumerConfig
+from pybrook.consumers.worker import ConsumerConfig, WorkerManager
 from pybrook.encoding import decode_stream_message, encode_stream_message
 from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
@@ -246,11 +246,12 @@ class InReport(ConsumerGenerator,
                metaclass=InReportMeta):
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
-        splitter = Splitter(redis_url=model.redis_url,
-                            object_id_field=cls._options.id_field,
-                            consumer_group_name=f'{cls._options.name}{SPECIAL_CHAR}sp',
-                            namespace=cls._options.name,
-                            input_streams=[cls._options.stream_name])
+        splitter = Splitter(
+            redis_url=model.redis_url,
+            object_id_field=cls._options.id_field,
+            consumer_group_name=f'{cls._options.name}{SPECIAL_CHAR}sp',
+            namespace=cls._options.name,
+            input_streams=[cls._options.stream_name])
         model.add_consumer(splitter)
 
     @classmethod
@@ -534,9 +535,8 @@ class PyBrookApi:
                                    Path(__file__).parent / 'frontend'),
                                            html=True),
                                name='static')
-            self.fastapi.state.redis = await aioredis.from_url(self.brook.redis_url,
-                                        encoding='utf-8',
-                                        decode_responses=True)
+            self.fastapi.state.redis = await aioredis.from_url(
+                self.brook.redis_url, encoding='utf-8', decode_responses=True)
             self.fastapi.state.socket_active = True
             signal.signal(signal.SIGINT, shutdown)
             signal.signal(signal.SIGTERM, shutdown)

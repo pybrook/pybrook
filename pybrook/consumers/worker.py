@@ -9,6 +9,7 @@ import redis
 import uvloop
 from loguru import logger
 
+from pybrook.config import DEFAULT_WORKERS
 from pybrook.consumers.base import (
     AsyncStreamConsumer,
     BaseStreamConsumer,
@@ -78,7 +79,7 @@ class Worker:
 
 @dataclasses.dataclass
 class ConsumerConfig:
-    workers: int = 8
+    workers: int = DEFAULT_WORKERS
 
 
 class WorkerManager:
@@ -110,7 +111,8 @@ class WorkerManager:
                 gears_consumers[c._redis_url].append(c)
                 continue
 
-            consumer_config = config.get(c._consumer_group_name, ConsumerConfig())
+            consumer_config = config.get(c._consumer_group_name,
+                                         ConsumerConfig())
             logger.info(f'Spawning worker for {c}...')
             w = Worker(c)
             if isinstance(c, SyncStreamConsumer):

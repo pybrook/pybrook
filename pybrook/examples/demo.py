@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 from math import atan2, degrees
+from os import environ
 from typing import Optional, Sequence
 
 from pybrook.models import (
@@ -11,7 +12,6 @@ from pybrook.models import (
     dependency,
     historical_dependency,
 )
-from os import environ
 
 brook = PyBrook(environ.get('REDIS_URL', 'redis://localhost'))
 app = brook.app
@@ -40,10 +40,10 @@ class LocationReport(OutReport):
 @brook.artificial_field()
 def direction(lat_history: Sequence[float] = historical_dependency(
     ZTMReport.lat, history_length=1),
-                    lon_history: Sequence[float] = historical_dependency(
-                        ZTMReport.lon, history_length=1),
-                    lat: float = dependency(ZTMReport.lat),
-                    lon: float = dependency(ZTMReport.lon)) -> Optional[float]:
+              lon_history: Sequence[float] = historical_dependency(
+                  ZTMReport.lon, history_length=1),
+              lat: float = dependency(ZTMReport.lat),
+              lon: float = dependency(ZTMReport.lon)) -> Optional[float]:
     prev_lat, = lat_history
     prev_lon, = lon_history
     if prev_lat and prev_lon:

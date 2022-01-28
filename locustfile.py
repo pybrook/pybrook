@@ -14,7 +14,7 @@ lines = list(sorted(data.keys()))
 
 
 class VehicleReportUser(FastHttpUser):
-    wait_time = between(0.8, 1)
+    wait_time = between(0.1, 0.5)
 
     def on_start(self):
         self.line = lines.pop(0)

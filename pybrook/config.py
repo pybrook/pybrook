@@ -9,3 +9,4 @@ MSG_ID_FIELD = config('MSG_ID_FIELD', str, default=f'{SPECIAL_CHAR}_msg_id')
 ARTIFICIAL_NAMESPACE = config('ARTIFICIAL_NAMESPACE',
                               str,
                               default='artificial')
+DEFAULT_WORKERS = config('DEFAULT_WORKERS', int, default=4)
