@@ -29,7 +29,7 @@ from pybrook.consumers.field_generator import (
     SyncFieldGenerator,
 )
 from pybrook.consumers.splitter import Splitter
-from pybrook.consumers.worker import WorkerManager
+from pybrook.consumers.worker import WorkerManager, ConsumerConfig
 from pybrook.encoding import decode_stream_message, encode_stream_message
 from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
@@ -248,7 +248,7 @@ class InReport(ConsumerGenerator,
     def gen_consumers(cls, model: 'PyBrook'):
         splitter = Splitter(redis_url=model.redis_url,
                             object_id_field=cls._options.id_field,
-                            consumer_group_name=cls._options.name,
+                            consumer_group_name=f'{cls._options.name}{SPECIAL_CHAR}sp',
                             namespace=cls._options.name,
                             input_streams=[cls._options.stream_name])
         model.add_consumer(splitter)
@@ -403,7 +403,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                     dst_key=field.destination_field_name)
                 for field in cls._report_fields.values()
             ],
-            resolver_name=f'{cls._options.name}')
+            resolver_name=cls._options.name)
         model.add_consumer(dependency_resolver)
 
 
@@ -483,7 +483,7 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
                 for dep_key, dep in self.historical_dependencies.items()
                 if dep.src_field
             ],
-            resolver_name=f'{self.field_name}')
+            resolver_name=self.field_name)
         model.add_consumer(dependency_resolver)
 
         field_generator_deps = [
@@ -570,7 +570,7 @@ class PyBrook:
         self.api: PyBrookApi = api_class(self)
         self.manager = None
 
-    def _process_model(self):
+    def process_model(self):
         if not self.consumers:
             for cls in chain(self.inputs.values(), self.outputs.values()):
                 self.visit(cls)
@@ -579,13 +579,14 @@ class PyBrook:
 
     @property
     def app(self) -> fastapi.FastAPI:
-        self._process_model()
+        self.process_model()
         return self.api.fastapi
 
-    def run(self):
-        self._process_model()
+    def run(self, config: Dict[str, ConsumerConfig] = None):
+        config = config or {}
+        self.process_model()
         self.manager = WorkerManager(self.consumers)
-        self.manager.run()
+        self.manager.run(config=config)
 
     def terminate(self):
         if not self.manager:

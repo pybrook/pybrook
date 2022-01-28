@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import multiprocessing
 import signal
 from collections import defaultdict
@@ -75,6 +76,11 @@ class Worker:
         return processes
 
 
+@dataclasses.dataclass
+class ConsumerConfig:
+    workers: int = 8
+
+
 class WorkerManager:
     def __init__(self, consumers: Iterable[BaseStreamConsumer]):
         self.consumers = consumers
@@ -90,7 +96,7 @@ class WorkerManager:
                 p.terminate()
             self._kill_on_terminate = True
 
-    def run(self):
+    def run(self, config: Dict[str, ConsumerConfig]):
         # TODO: accept CLI params here
         if self.processes:
             raise RuntimeError('Already running!')
@@ -103,12 +109,14 @@ class WorkerManager:
             if isinstance(c, GearsStreamConsumer):
                 gears_consumers[c._redis_url].append(c)
                 continue
+
+            consumer_config = config.get(c._consumer_group_name, ConsumerConfig())
             logger.info(f'Spawning worker for {c}...')
             w = Worker(c)
             if isinstance(c, SyncStreamConsumer):
-                procs = w.run_sync(processes_num=8)
+                procs = w.run_sync(processes_num=consumer_config.workers)
             elif isinstance(c, AsyncStreamConsumer):
-                procs = w.run_async(processes_num=8)
+                procs = w.run_async(processes_num=consumer_config.workers)
             else:
                 raise NotImplementedError(c)
             self.processes.extend(procs)

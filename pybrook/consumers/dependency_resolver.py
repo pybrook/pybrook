@@ -49,15 +49,15 @@ class DependencyResolver(SyncStreamConsumer):
         self._historical_dependencies: List[
             DependencyResolver.HistoricalDep] = historical_dependencies or []
         self._num_dependencies = len(dependencies)
-        self._resolver_name = resolver_name
+        consumer_group_name = f'{resolver_name}{SPECIAL_CHAR}dr'
         if not output_stream_name:
-            output_stream_name = f'{SPECIAL_CHAR}{self._resolver_name}{SPECIAL_CHAR}deps'
+            output_stream_name = f'{SPECIAL_CHAR}{consumer_group_name}{SPECIAL_CHAR}deps'
         self.output_stream_name: str = output_stream_name
         input_streams = list(
             set(s.src_stream for s in chain(  # type: ignore
                 dependencies, self._historical_dependencies)))
         super().__init__(redis_url=redis_url,
-                         consumer_group_name=resolver_name,
+                         consumer_group_name=consumer_group_name,
                          input_streams=input_streams,
                          read_chunk_length=read_chunk_length,
                          **kwargs)
