@@ -14,6 +14,7 @@ import aioredis
 import fastapi
 import pydantic
 import redis
+from asgiref.sync import async_to_sync
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
@@ -527,28 +528,29 @@ class PyBrookApi:
             return self.schema
 
         @self.fastapi.on_event('startup')
-        def startup():
+        async def startup():
             self.fastapi.mount('/panel/',
                                StaticFiles(directory=str(
                                    Path(__file__).parent / 'frontend'),
                                            html=True),
                                name='static')
+            self.fastapi.state.redis = await aioredis.from_url(self.brook.redis_url,
+                                        encoding='utf-8',
+                                        decode_responses=True)
             self.fastapi.state.socket_active = True
             signal.signal(signal.SIGINT, shutdown)
             signal.signal(signal.SIGTERM, shutdown)
 
-        def shutdown(*args):
+        @async_to_sync
+        async def shutdown(*args):
             logger.info('set socket active to false')
             self.fastapi.state.socket_active = False
+            await redis.close()
+            await redis.connection_pool.disconnect()
 
     async def redis_dependency(self) -> AsyncIterator[aioredis.Redis]:
         """Redis FastAPI Dependency"""
-        redis = await aioredis.from_url(self.brook.redis_url,
-                                        encoding='utf-8',
-                                        decode_responses=True)
-        yield redis
-        await redis.close()
-        await redis.connection_pool.disconnect()
+        yield self.fastapi.state.redis
 
     def visit(self, generator: RouteGenerator):
         # TODO: proper visitor using singledispatchmethod
