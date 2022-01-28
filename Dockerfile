@@ -18,6 +18,7 @@ WORKDIR /src
 COPY poetry.lock pyproject.toml /src/
 RUN poetry config virtualenvs.create false && poetry install --no-dev --no-root --no-interaction --no-ansi
 COPY pybrook /src/pybrook
-COPY README.md /src/
+COPY README.md locustfile.py  ztm_dump.json /src/
+ENV TZ=CET
 RUN poetry install --no-dev --no-interaction --no-ansi
 CMD bash

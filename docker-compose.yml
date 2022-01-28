@@ -15,5 +15,14 @@ services:
     environment:
       REDIS_URL: redis://redis
     command: pybrook pybrook.examples.demo:brook
+  locust:
+    image: pybrook:latest
+    depends_on:
+      - api
+    ports:
+      - 8089:8089
+    command: locust -H http://api:8000
   redis:
     image: redislabs/redisgears:latest
+
+
