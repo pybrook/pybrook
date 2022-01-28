@@ -1,14 +1,37 @@
 site_name: pybrook
 
 nav:
-  - Main: "index.md"
-
+  - Introduction: "index.md"
+  - Reference:
+      - pybrook:
+          - __init__: "reference/__init__.md"
+          - __main__: "reference/__main__.md"
+          - schemas: "reference/schemas.md"
+          - models: "reference/models.md"
+          - encoding: "reference/encoding.md"
+          - config: "reference/config.md"
+          - consumers:
+              - base: "reference/consumers/base.md"
+              - dependency_resolver: "reference/consumers/dependency_resolver.md"
+              - field_generator: "reference/consumers/field_generator.md"
+              - splitter: "reference/consumers/splitter.md"
+              - worker: "reference/consumers/worker.md"
 theme:
   name: "material"
   language: en
   palette:
-    primary: white
-    accent: pink
+    - scheme: default
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+      primary: white
+      accent: pink
+    - scheme: slate
+      primary: black
+      accent: red
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
 
 extra_css:
   - css/mkdocstrings.css
@@ -43,7 +66,6 @@ markdown_extensions:
 
 plugins:
   - search
-  - git-revision-date-localized
   - mkdocstrings:
       watch:
         - .
@@ -51,7 +73,21 @@ plugins:
         python:
           rendering:
             show_if_no_docstring: true
+            show_bases: True
+
           selection:
             filters:
               - "!^__config__"
               - "!^__json_encoder__"
+              - "!^__fields__"
+              - "!^__post_root_validators__"
+              - "!^__pre_root_validators__"
+              - "!^__signature__"
+              - "!^__slots__"
+              - "!^__validators__"
+              - "!^__class_vars__"
+              - "!^__private__attributes__"
+              - "!^__schema_cache__"
+              - "!^__custom_root_type__"
+              - "!^__doc__"
+              - "!^__private_attributes__"
