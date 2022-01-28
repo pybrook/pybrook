@@ -11,8 +11,9 @@ from pybrook.models import (
     dependency,
     historical_dependency,
 )
+from os import environ
 
-brook = PyBrook('redis://localhost')
+brook = PyBrook(environ.get('REDIS_URL', 'redis://localhost'))
 app = brook.app
 
 
