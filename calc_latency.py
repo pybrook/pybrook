@@ -30,10 +30,12 @@ def calc_latency(in_stream, out_streams):
     deltas = dict(deltas)
     for stream in out_streams:
         print(stream)
+        sorted_deltas = sorted(deltas[stream].values())
         msgs = len(deltas[stream])
         print('Messages: ', msgs)
+        print('Median: ', sorted_deltas[msgs//2])
         print('Average latency: ', sum(deltas[stream].values()) / msgs)
-        print('90th percentile: ', sorted(deltas[stream].values())[round(msgs*0.9)])
+        print('90th percentile: ', sorted_deltas[round(msgs*0.9)])
 
 
 if __name__ == '__main__':
