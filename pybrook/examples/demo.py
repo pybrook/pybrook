@@ -57,20 +57,9 @@ class DirectionReport(OutReport):
     direction = ReportField(direction)
 
 
-@brook.artificial_field()
-async def counter(prev_values: Sequence[int] = historical_dependency(
-    'counter', history_length=1),
-                  time: datetime = dependency(ZTMReport.time)) -> int:
-    prev_value, = prev_values
-    if prev_value is None:
-        prev_value = -1
-    prev_value += 1
-    return prev_value
-
-
-@brook.output('counter-report')
-class CounterReport(OutReport):
-    counter = ReportField(counter)
+@brook.output('brigade-report')
+class BrigadeReport(OutReport):
+    brigade = ReportField(ZTMReport.brigade)
 
 
 brook.set_meta(latitude_field=LocationReport.lat,
