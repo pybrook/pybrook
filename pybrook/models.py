@@ -571,12 +571,12 @@ class PyBrookApi:
             signal.signal(signal.SIGINT, shutdown)
             signal.signal(signal.SIGTERM, shutdown)
 
-        @async_to_sync
-        async def shutdown(*args):
+        @self.fastapi.on_event('shutdown')
+        def shutdown(*args):
             logger.info('set socket active to false')
             self.fastapi.state.socket_active = False
-            await redis.close()
-            await redis.connection_pool.disconnect()
+            asyncio.create_task(self.fastapi.state.redis.close())
+            asyncio.create_task(self.fastapi.state.redis.connection_pool.disconnect())
 
     async def redis_dependency(self) -> AsyncIterator[aioredis.Redis]:
         """

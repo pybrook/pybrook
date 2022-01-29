@@ -117,8 +117,8 @@ class WorkerManager:
                                         encoding='utf-8')
             self.acquire_gears_registration_lock(redis_conn)
             ids = [
-                r
-                for r, *_ in redis_conn.execute_command('RG.DUMPREGISTRATIONS')
+                r[1]
+                for r in redis_conn.execute_command('RG.DUMPREGISTRATIONS')
             ]
             for i in ids:
                 redis_conn.execute_command('RG.UNREGISTER', i)
