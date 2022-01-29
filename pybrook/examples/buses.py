@@ -1,7 +1,5 @@
 from datetime import datetime
 
-import httpx
-
 from pybrook.models import InReport, OutReport, PyBrook, ReportField, dependency
 
 brook = PyBrook('redis://localhost')
@@ -26,7 +24,7 @@ def calc_course_id(
         latitude: float = dependency(LocationReport.lat),
         longitude: float = dependency(LocationReport.lon),
 ) -> float:
-    return 1234
+    return 1234  # noqa: WPS432
 
 
 @brook.output('course-report')

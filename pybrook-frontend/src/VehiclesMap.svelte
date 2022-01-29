@@ -68,7 +68,10 @@
         </div>
     {#if !tooManyVehicles}
         {#each vehiclesInViewPort as vehicleId (vehicleId)}
-            <VehicleMarker {map} directionDeg={vehicleDirections[vehicleId]} lat={vehiclePositions[vehicleId].lat} lng={vehiclePositions[vehicleId].lon}
+            <VehicleMarker {map}
+                           directionDeg={vehicleDirections[vehicleId]}
+                           lat={vehiclePositions[vehicleId].lat}
+                           lng={vehiclePositions[vehicleId].lon}
                            selected={selected == vehicleId}
                            labelText="{vehicleIdToGroup[vehicleId]}/{vehicleId}"
                            on:click={() => {dispatch('vehicle-selected', {vehicleId}); selected=vehicleId;}}/>

@@ -1,5 +1,4 @@
 import dataclasses
-from datetime import datetime
 from itertools import chain
 from typing import Dict, List
 
@@ -12,13 +11,13 @@ from pybrook.encoding import decode_value, encode_value
 
 class DependencyResolver(SyncStreamConsumer):
     @dataclasses.dataclass
-    class Dep:
+    class Dep:  # noqa: WPS431
         src_stream: str
         src_key: str
         dst_key: str
 
     @dataclasses.dataclass
-    class HistoricalDep:
+    class HistoricalDep:  # noqa: WPS431
         src_stream: str
         src_key: str
         dst_key: str
@@ -39,11 +38,14 @@ class DependencyResolver(SyncStreamConsumer):
             redis_url: Redis server URL
             resolver_name: Name of the resolver, used for the consumer group
             output_stream_name: name of the output stream
+            historical_dependencies:
+                A list of historical dependencies to load when all regular dependencies are available.
             dependencies:
                 Keys are source streams, values are dependency names used as keys in the output stream.
                 Source streams should contain just the internal msgid and values
                 for the specific field.
             read_chunk_length: Redis XACK COUNT arg
+            kwargs: other arguments that will be passed to SyncStreamConsumer.__init__
         """
         self._dependencies: List[DependencyResolver.Dep] = dependencies
         self._historical_dependencies: List[
@@ -53,9 +55,10 @@ class DependencyResolver(SyncStreamConsumer):
         if not output_stream_name:
             output_stream_name = f'{SPECIAL_CHAR}{consumer_group_name}{SPECIAL_CHAR}deps'
         self.output_stream_name: str = output_stream_name
-        input_streams = list(
-            set(s.src_stream for s in chain(  # type: ignore
-                dependencies, self._historical_dependencies)))
+        input_streams = list({
+            s.src_stream  # type: ignore
+            for s in chain(dependencies, self._historical_dependencies)
+        })
         super().__init__(redis_url=redis_url,
                          consumer_group_name=consumer_group_name,
                          input_streams=input_streams,
@@ -77,8 +80,8 @@ class DependencyResolver(SyncStreamConsumer):
         if historical_deps:
             vehicle_id, vehicle_message_id = message_id.rsplit(SPECIAL_CHAR,
                                                                maxsplit=1)
-            dependency_map_key_base = self.dependency_map_key(vehicle_id +
-                                                              SPECIAL_CHAR)
+            dependency_map_key_base = self.dependency_map_key(vehicle_id
+                                                              + SPECIAL_CHAR)
             for dst_key, value, history_length in historical_deps:
                 id_in_deps = history_length
                 future_vehicle_message_id = int(vehicle_message_id)
@@ -99,7 +102,8 @@ class DependencyResolver(SyncStreamConsumer):
         incr_key = dep_key + f'{SPECIAL_CHAR}incr'
         new_deps = {
             k.dst_key: message[k.src_key]
-            for k in self._dependencies if k.src_key in message
+            for k in self._dependencies
+            if k.src_key in message
         }
         incr_num = 0
         if new_deps:
@@ -115,10 +119,11 @@ class DependencyResolver(SyncStreamConsumer):
             for h in self._historical_dependencies:
                 dependencies[h.dst_key] = []
                 for i in range(h.history_length):
-                    val = dependencies.pop(f'{h.dst_key}{SPECIAL_CHAR}{i}',
-                                           None)
+                    dep_value = dependencies.pop(
+                        f'{h.dst_key}{SPECIAL_CHAR}{i}', None)
                     dependencies[h.dst_key].append(
-                        decode_value(val) if val is not None else val)
+                        decode_value(dep_value
+                                     ) if dep_value is not None else dep_value)
                 dependencies[h.dst_key] = encode_value(dependencies[h.dst_key])
             # tutaj była transakcja
             pipeline.delete(dep_key, incr_key)

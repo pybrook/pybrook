@@ -5,8 +5,17 @@ docstring-convention = google
 ban-relative-imports = true
 per-file-ignores =
     pybrook/__init__.py:WPS412
+    pybrook/config.py:WPS432
 
 ignore =
+    E126
+    # Continuation line over-indented for hanging indent, let YAPF handle this
+    WPS361
+    # Found an inconsistently structured comprehension - doesn't work with YAPF
+    WPS430
+    # Found nested function
+    WPS460
+    # Found single element destructuring
     WPS602
     # redundant with W0622 (builtin override), which is more precise about line number
     A001

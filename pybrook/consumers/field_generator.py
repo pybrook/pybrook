@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Callable, Dict, List, Type, Union
+from typing import Callable, Dict, List, Type, Union
 
 import aioredis
 import pydantic
@@ -11,12 +11,14 @@ from pybrook.consumers.base import (
     BaseStreamConsumer,
     SyncStreamConsumer,
 )
-from pybrook.encoding import decode_stream_message, encode_stream_message, encode_value
+from pybrook.encoding import decode_stream_message, encode_stream_message
+
+AnyRedis = Union[aioredis.Redis, redis.Redis]
 
 
 class BaseFieldGenerator(BaseStreamConsumer):
     @dataclasses.dataclass
-    class Dep:
+    class Dep:  # noqa: WPS431
         name: str
         value_type: Type
 
@@ -28,13 +30,13 @@ class BaseFieldGenerator(BaseStreamConsumer):
                  namespace: str = ARTIFICIAL_NAMESPACE,
                  dependency_stream: str,
                  dependencies: List[Dep],
-                 pass_redis: List[str] = None,
+                 redis_deps: List[str] = None,
                  read_chunk_length: int = 200,
                  **kwargs):
         self.generator = generator
         self.dependencies = dependencies
         self.field_name = field_name
-        self.pass_redis = pass_redis or []
+        self.redis_deps = redis_deps or []
         self.output_stream_name = f'{SPECIAL_CHAR}{namespace}{SPECIAL_CHAR}{field_name}'
         pydantic_fields = {
             dep.name: (dep.value_type, pydantic.Field())
@@ -55,14 +57,12 @@ class BaseFieldGenerator(BaseStreamConsumer):
     def __repr__(self):
         return f'<{self.__class__.__name__} input_streams={self.input_streams}>'
 
-    def call_generator(self, dependencies, redis_conn: Union[aioredis.Redis,
-                                                             redis.Redis]):
-        if self.pass_redis:
+    def call_generator(self, dependencies, redis_conn: AnyRedis):
+        if self.redis_deps:
             return self.generator(**dependencies,
                                   **{k: redis_conn
-                                     for k in self.pass_redis})
-        else:
-            return self.generator(**dependencies)
+                                     for k in self.redis_deps})
+        return self.generator(**dependencies)
 
 
 class AsyncFieldGenerator(AsyncStreamConsumer, BaseFieldGenerator):

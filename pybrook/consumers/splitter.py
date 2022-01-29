@@ -1,7 +1,7 @@
 import inspect
-import pickle
+import pickle  # noqa: S403
 from textwrap import dedent
-from typing import Dict, Iterable, Any, Callable
+from typing import Any, Callable, Dict, Iterable
 
 import aioredis
 import redis
@@ -70,47 +70,43 @@ class SyncSplitter(SyncStreamConsumer, BaseSplitter):
 
 
 class GearsSplitter(GearsStreamConsumer, BaseSplitter):
-
-    def register_readers(self, execute: Callable[..., Any], gears_builder: Any):
+    def register_readers(self, execute: Callable[..., Any],
+                         gears_builder: Any):
+        import json
         from itertools import chain
-        from json import loads
-        GearsBuilder = gears_builder
 
-        def process_message(msg):
-            try:
-                message = msg["value"]
-                obj_id = loads(message[self.object_id_field])
-                msg_id_key = f'{SPECIAL_CHAR}id{SPECIAL_CHAR}{obj_id}'
-                obj_msg_id = execute("INCR", msg_id_key)
-                out_stream = f'{SPECIAL_CHAR}{self.namespace}{SPECIAL_CHAR}split'
-                message[MSG_ID_FIELD] = f'"{obj_id}:{obj_msg_id}"'
-                execute("XADD", out_stream, '*', *chain(*message.items()))
-            except Exception as e:
-                execute("ECHO", str(e))
+        def process_message(msg):  # noqa: WPS430
+            message = msg["value"]
+            obj_id = json.loads(message[self.object_id_field])
+            msg_id_key = f'{SPECIAL_CHAR}id{SPECIAL_CHAR}{obj_id}'
+            obj_msg_id = execute("INCR", msg_id_key)
+            out_stream = f'{SPECIAL_CHAR}{self.namespace}{SPECIAL_CHAR}split'
+            message[MSG_ID_FIELD] = f'"{obj_id}:{obj_msg_id}"'
+            execute("XADD", out_stream, '*', *chain(*message.items()))
 
         for s in self._input_streams:
-            GearsBuilder("StreamReader").foreach(process_message).register(s, trimStream=False, mode="sync")
+            gears_builder("StreamReader").foreach(process_message).register(
+                s, trimStream=False, mode="sync")
 
-    def register_builder(self, pipeline: redis.client.Pipeline):
+    def register_builder(self, conn: redis.Redis):
         scope = {
-            name: value for name, value in globals().items() if type(value) in [int, list, str, float] and not name.startswith('__')
+            name: value
+            for name, value in globals().items()
+            if type(value) in {int, list, str, float}  # noqa: WPS516
+            and not name.startswith('__')
         }
-        context = {
-            **scope,
-            'ctx': self.__dict__
-        }
-        registration_fun_code = dedent(inspect.getsource(self.register_readers)).split('@staticmethod', maxsplit=1)[-1]
-        context_dumps = pickle.dumps(context)
+        context = {**scope, 'ctx': self.__dict__}
+        registration_fun_code = dedent(inspect.getsource(
+            self.register_readers)).split('@staticmethod', maxsplit=1)[-1]
+        context_dumps = str(pickle.dumps(context))
         cmd = f'import pickle\nfrom typing import *\n{registration_fun_code}\n' \
               f'locals().update(pickle.loads({context_dumps}))\n' \
               f'register_readers(self=type("{self.__class__.__name__}", (), ctx), execute=execute, gears_builder=GearsBuilder)'''
         print(cmd)
-        out = pipeline.execute_command('RG.PYEXECUTE', cmd)
+        out = conn.execute_command('RG.PYEXECUTE', cmd)
         logger.info(f'Registered Redis Gears Reader: \n{cmd}\n{out}')
 
 
-class Splitter(GearsSplitter, AsyncSplitter, SyncSplitter,
-               BaseSplitter):  # noqa: WPS215
+class Splitter(  # noqa: WPS215
+        GearsSplitter, AsyncSplitter, SyncSplitter, BaseSplitter):
     """Splitter."""
-
-

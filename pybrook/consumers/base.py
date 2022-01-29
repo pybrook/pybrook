@@ -5,8 +5,7 @@ import signal
 import sys
 from concurrent import futures
 from enum import Enum
-from time import time
-from typing import Dict, Iterable, List, MutableMapping, Set, Tuple, Union
+from typing import Dict, Iterable, MutableMapping, Set, Tuple, Union
 
 import aioredis
 import redis
@@ -30,8 +29,8 @@ class BaseStreamConsumer:
                  use_thread_executor: bool = False,
                  read_chunk_length: int = 1,
                  read_messages_since: Union[str, int] = '$'):
-        self._consumer_group_name = consumer_group_name
-        self._redis_url = redis_url
+        self.consumer_group_name = consumer_group_name
+        self.redis_url = redis_url
         self._active = False
         self._use_thread_executor = use_thread_executor
         self._read_chunk_length = read_chunk_length
@@ -58,13 +57,13 @@ class BaseStreamConsumer:
         self._input_streams = tuple(streams)
 
     def register_consumer(self):
-        redis_conn = redis.from_url(self._redis_url,
+        redis_conn = redis.from_url(self.redis_url,
                                     encoding='utf-8',
                                     decode_responses=True)
         for stream in self.input_streams:
             try:
                 redis_conn.xgroup_create(stream,
-                                         self._consumer_group_name,
+                                         self.consumer_group_name,
                                          id=self.read_messages_since,
                                          mkstream=True)
             except redis.ResponseError as e:
@@ -75,9 +74,8 @@ class BaseStreamConsumer:
         if not self._active:
             logger.warning(f'Killing {self}')
             sys.exit()
-        else:
-            logger.info(f'Terminating {self}')
-            self.active = False
+        logger.info(f'Terminating {self}')
+        self.active = False
 
     def register_signals(self):
         signal.signal(signal.SIGTERM, self.stop)
@@ -97,7 +95,7 @@ class BaseStreamConsumer:
         return {
             'streams': {s: '>'
                         for s in self.input_streams},
-            'groupname': self._consumer_group_name,
+            'groupname': self.consumer_group_name,
             'consumername': consumer_name,
             'count': self._read_chunk_length,
             'block': 1000
@@ -122,14 +120,14 @@ class SyncStreamConsumer(BaseStreamConsumer):
         if not self.executor:
             return
         self.executor.shutdown(wait=False, cancel_futures=False)
-        if self.executor._work_queue.qsize():
+        if self.executor._work_queue.qsize():  # noqa: WPS437
             logger.warning(
                 'Waiting for all futures to finish, use Ctrl + C to force exit.'
             )
 
-    def run_sync(self):
+    def run_sync(self):  # noqa: WPS231
         self.register_signals()
-        redis_conn: redis.Redis = redis.from_url(self._redis_url,
+        redis_conn: redis.Redis = redis.from_url(self.redis_url,
                                                  encoding='utf-8',
                                                  decode_responses=True)
         self._active = True
@@ -171,11 +169,11 @@ class SyncStreamConsumer(BaseStreamConsumer):
                                                pipeline=p)
             for out_stream, out_msg in result.items():
                 p.xadd(out_stream, out_msg)
-            p.xack(stream, self._consumer_group_name, msg_id)
+            p.xack(stream, self.consumer_group_name, msg_id)
             try:
                 p.execute()
             except redis.WatchError:  # pragma: nocover
-                redis_conn.xack(stream, self._consumer_group_name, msg_id)
+                redis_conn.xack(stream, self.consumer_group_name, msg_id)
 
 
 class AsyncStreamConsumer(BaseStreamConsumer):
@@ -193,15 +191,15 @@ class AsyncStreamConsumer(BaseStreamConsumer):
 
     def stop(self, signum=None, frame=None):
         super().stop(signum, frame)
-        if len(asyncio.all_tasks()):
+        if asyncio.all_tasks():
             logger.info(
                 'Waiting for all asyncio tasks to finish, use Ctrl + C to force exit.'
             )
 
-    async def run_async(self):  # noqa: WPS217
+    async def run_async(self):  # noqa: WPS231
         self.register_signals()
         redis_conn: aioredis.Redis = await aioredis.from_url(
-            self._redis_url, encoding='utf-8', decode_responses=True)
+            self.redis_url, encoding='utf-8', decode_responses=True)
         self.active = True
         xreadgroup_params = self._xreadgroup_params
         tasks: Set[asyncio.Future] = set()
@@ -233,12 +231,11 @@ class AsyncStreamConsumer(BaseStreamConsumer):
                                                       pipeline=p)
             for out_stream, out_msg in result.items():
                 p.xadd(out_stream, out_msg)  # type: ignore
-            p.xack(stream, self._consumer_group_name, msg_id)
+            p.xack(stream, self.consumer_group_name, msg_id)
             try:
                 await p.execute()
             except aioredis.WatchError:  # pragma: nocover
-                await redis_conn.xack(stream, self._consumer_group_name,
-                                      msg_id)
+                await redis_conn.xack(stream, self.consumer_group_name, msg_id)
 
 
 class GearsStreamConsumer(BaseStreamConsumer):
@@ -246,5 +243,5 @@ class GearsStreamConsumer(BaseStreamConsumer):
     def supported_impl(self) -> Set[ConsumerImpl]:
         return super().supported_impl | {ConsumerImpl.GEARS}
 
-    def register_builder(self, pipeline: redis.client.Pipeline):
+    def register_builder(self, conn: redis.Redis):
         raise NotImplementedError  # pragma: nocover

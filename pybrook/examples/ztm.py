@@ -1,10 +1,6 @@
-import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from math import atan2, degrees
-from time import sleep
-from typing import Any, List, Optional, Sequence, Tuple, Union
-
-from pydantic import Field
+from typing import Optional, Sequence
 
 from pybrook.models import (
     InReport,
@@ -50,8 +46,7 @@ async def direction(lat_history: Sequence[float] = historical_dependency(
     prev_lon, = lon_history
     if prev_lat and prev_lon:
         return degrees(atan2(lon - prev_lon, lat - prev_lat))
-    else:
-        return None
+    return None
 
 
 @brook.output('direction-report')

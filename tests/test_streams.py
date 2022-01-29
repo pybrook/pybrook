@@ -82,12 +82,7 @@ def test_worker(test_input, redis_sync, mode, limit_time, mock_processes):
                      read_messages_since=0,
                      consumer_group_name='test_consumer',
                      redis_url=TEST_REDIS_URI))
-    if mode == 'async':
-        processes = worker.run_async()
-    elif mode == 'sync':
-        processes = worker.run_sync()
-    else:
-        raise NotImplementedError
+    processes = worker.run()
 
     for p in processes:
         p.join()
@@ -205,8 +200,8 @@ def test_perf(test_input_perf, redis_sync):
         read_chunk_length=10,
         redis_url=TEST_REDIS_URI)
     repr(resolver)
-    splitter_procs = Worker(splitter).run_sync(processes_num=3)
-    resolver_procs = Worker(resolver).run_sync(processes_num=8)
+    splitter_procs = Worker(splitter).run(processes_num=3)
+    resolver_procs = Worker(resolver).run(processes_num=8)
     splitter.register_consumer()  # should do nothing
     assert splitter.supported_impl == {
         ConsumerImpl.GEARS, ConsumerImpl.ASYNC, ConsumerImpl.SYNC

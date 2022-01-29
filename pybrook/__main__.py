@@ -1,13 +1,12 @@
 import argparse
-import sys
 from importlib import import_module, reload
-from typing import Any, List, Tuple, Union
+from typing import Dict, List, Union
 
 from loguru import logger
 from watchdog.events import DirModifiedEvent, FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from pybrook.consumers.base import GearsStreamConsumer
+from pybrook.consumers.base import BaseStreamConsumer, GearsStreamConsumer
 from pybrook.consumers.worker import ConsumerConfig
 from pybrook.models import PyBrook
 
@@ -36,6 +35,30 @@ class ModelChangeEventHandler(FileSystemEventHandler):
         self.brook.terminate()
 
 
+def add_consumer_args(
+        parser: argparse.ArgumentParser,
+        consumers: List[BaseStreamConsumer]) -> Dict[str, ConsumerConfig]:
+    workers_config = {}
+    for c in consumers:
+        if not isinstance(c, GearsStreamConsumer):
+            consumer_config = ConsumerConfig()
+            parser.add_argument(
+                f'--{c.consumer_group_name}-workers',
+                type=int,
+                help='(default: %(default)s)',  # noqa: WPS323
+                default=consumer_config.workers)
+            workers_config[c.consumer_group_name] = consumer_config
+    return workers_config
+
+
+def update_workers_config(args: argparse.Namespace,
+                          workers_config: Dict[str, ConsumerConfig]):
+    for c in workers_config.keys():
+        for arg in ('workers', ):
+            arg_name: str = c.replace('-', '_') + '_' + arg
+            setattr(workers_config[c], arg, getattr(args, arg_name))
+
+
 def main():
     """
     CLI Entrypoint for now.
@@ -60,28 +83,17 @@ def main():
         return
     model_module = import_module(app_arg[0])
     modified = True
-    workers_config = dict()
     while modified:
         brook: PyBrook = getattr(
             model_module,
             app_arg[1]) if len(app_arg) > 1 else model_module.brook
         brook.process_model()
-        for c in brook.consumers:
-            if not isinstance(c, GearsStreamConsumer):
-                consumer_config = ConsumerConfig()
-                parser.add_argument(f'--{c._consumer_group_name}-workers',
-                                    type=int,
-                                    help='(default: %(default)s)',
-                                    default=consumer_config.workers)
-                workers_config[c._consumer_group_name] = consumer_config
+        workers_config = add_consumer_args(parser, brook.consumers)
         args = parser.parse_args()
         if args.help:
             parser.print_help()
             return
-        for c in workers_config:
-            for arg in ['workers']:
-                arg_name: str = c.replace('-', '_') + '_' + arg
-                setattr(workers_config[c], arg, getattr(args, arg_name))
+        update_workers_config(args, workers_config)
         handler = ModelChangeEventHandler(brook)
         observer = Observer()
         observer.schedule(handler, model_module.__file__)  # noqa: WPS609

@@ -2,8 +2,7 @@ import asyncio
 import dataclasses
 import multiprocessing
 import signal
-from collections import defaultdict
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Set, Tuple
 
 import redis
 import uvloop
@@ -21,15 +20,15 @@ DEFAULT_PROCESSES_NUM = multiprocessing.cpu_count()
 
 
 class Worker:
-    def __init__(self, consumer: Union[SyncStreamConsumer,
-                                       AsyncStreamConsumer]):
+    def __init__(self, consumer: BaseStreamConsumer):
         self._consumer = consumer
 
-    def run_sync(self, *, processes_num: int = DEFAULT_PROCESSES_NUM):
-        return self._spawn_sync(processes_num=processes_num)
-
-    def run_async(self, *, processes_num: int = DEFAULT_PROCESSES_NUM):
-        return self._spawn_async(processes_num=processes_num)
+    def run(self, *, processes_num: int = DEFAULT_PROCESSES_NUM):
+        if isinstance(self._consumer, SyncStreamConsumer):
+            return self._spawn_sync(processes_num=processes_num)
+        elif isinstance(self._consumer, AsyncStreamConsumer):
+            return self._spawn_async(processes_num=processes_num)
+        raise NotImplementedError(self._consumer)
 
     def _spawn_sync(self,
                     processes_num: int) -> Iterable[multiprocessing.Process]:
@@ -45,10 +44,7 @@ class Worker:
             asyncio.get_event_loop().run_until_complete(
                 self._consumer.run_async())
         except KeyboardInterrupt:
-            pass
-        except RuntimeError as e:
-            # Probably something didn't clean up
-            raise e
+            ...
         except asyncio.CancelledError:
             ...  # This is fine, shouldn't break anything
 
@@ -83,8 +79,18 @@ class ConsumerConfig:
 
 
 class WorkerManager:
-    def __init__(self, consumers: Iterable[BaseStreamConsumer]):
+    def __init__(self,
+                 consumers: Iterable[BaseStreamConsumer],
+                 config: Dict[str, ConsumerConfig] = None):
         self.consumers = consumers
+        self.config = config or {}
+        self.redis_urls: Set[str] = {c.redis_url for c in consumers}
+        self.gears_consumers: List[GearsStreamConsumer] = [
+            c for c in consumers if isinstance(c, GearsStreamConsumer)
+        ]
+        self.regular_consumers: List[BaseStreamConsumer] = [
+            c for c in consumers if not isinstance(c, GearsStreamConsumer)
+        ]
         self.processes: List[multiprocessing.Process] = []
         self._kill_on_terminate = False
 
@@ -92,62 +98,57 @@ class WorkerManager:
         if self._kill_on_terminate:
             for p in self.processes:
                 p.kill()
-        else:
-            for p in self.processes:
-                p.terminate()
-            self._kill_on_terminate = True
+            return
+        for p in self.processes:  # noqa: WPS440
+            p.terminate()
+        self._kill_on_terminate = True
 
-    def run(self, config: Dict[str, ConsumerConfig]):
-        # TODO: accept CLI params here
+    def run(self):
         if self.processes:
             raise RuntimeError('Already running!')
-        gears_consumers: Mapping[str,
-                                 List[GearsStreamConsumer]] = defaultdict(list)
         signal.signal(signal.SIGINT, lambda *args: self.terminate)
         signal.signal(signal.SIGTERM, lambda *args: self.terminate)
 
-        for c in self.consumers:
-            if isinstance(c, GearsStreamConsumer):
-                gears_consumers[c._redis_url].append(c)
-                continue
+        self.spawn_workers()
 
-            consumer_config = config.get(c._consumer_group_name,
-                                         ConsumerConfig())
-            logger.info(f'Spawning worker for {c}...')
-            w = Worker(c)
-            if isinstance(c, SyncStreamConsumer):
-                procs = w.run_sync(processes_num=consumer_config.workers)
-            elif isinstance(c, AsyncStreamConsumer):
-                procs = w.run_async(processes_num=consumer_config.workers)
-            else:
-                raise NotImplementedError(c)
-            self.processes.extend(procs)
-        for redis_url, consumers in dict(gears_consumers).items():
+        for redis_url in self.redis_urls:
             redis_conn = redis.from_url(redis_url,
                                         decode_responses=True,
                                         encoding='utf-8')
-            with redis_conn.pipeline() as p:
-                p.watch('RG.REGISTERLOCK')
-                if p.exists('RG.REGISTERLOCK'):
-                    raise RuntimeError(
-                        'Try again later, RG registration is locked, possibly by another instance'
-                    )
-                p.multi()
-                p.set('RG.REGISTERLOCK', '1')
-                p.expire('RG.REGISTERLOCK', '5')
-                p.execute(raise_on_error=True)
+            self.acquire_gears_registration_lock(redis_conn)
             ids = [
-                r[1]
-                for r in redis_conn.execute_command('RG.DUMPREGISTRATIONS')
+                r
+                for r, *_ in redis_conn.execute_command('RG.DUMPREGISTRATIONS')
             ]
             for i in ids:
                 redis_conn.execute_command('RG.UNREGISTER', i)
-            for c in consumers:
-                c.register_builder(redis_conn)
+            for consumer in self.gears_consumers:
+                consumer.register_builder(redis_conn)
             redis_conn.delete('RG.REGISTERLOCK')
         for proc in self.processes:
             try:
                 proc.join()
             except KeyboardInterrupt:
-                pass
+                ...
         self.processes = []
+
+    def spawn_workers(self):
+        for c in self.regular_consumers:
+            consumer_config = self.config.get(c.consumer_group_name,
+                                              ConsumerConfig())
+            logger.info(f'Spawning worker for {c}...')
+            w = Worker(c)
+            procs = w.run(processes_num=consumer_config.workers)
+            self.processes.extend(procs)
+
+    def acquire_gears_registration_lock(self, redis_conn: redis.Redis):
+        with redis_conn.pipeline() as p:
+            p.watch('RG.REGISTERLOCK')
+            if p.exists('RG.REGISTERLOCK'):
+                raise RuntimeError(
+                    'Try again later, RG registration is locked, possibly by another instance'
+                )
+            p.multi()
+            p.set('RG.REGISTERLOCK', '1')
+            p.expire('RG.REGISTERLOCK', 5)
+            p.execute(raise_on_error=True)
