@@ -65,6 +65,3 @@ brook.set_meta(latitude_field=LocationReport.lat,
                time_field=LocationReport.time,
                group_field=LocationReport.line,
                direction_field=DirectionReport.direction)
-
-if __name__ == '__main__':
-    brook.run()
