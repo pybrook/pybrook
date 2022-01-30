@@ -1,16 +1,28 @@
 from threading import Thread
 
+import pytest
 from starlette.testclient import TestClient
 
 from tests.conftest import TEST_REDIS_URI
 
 
-def test_buses_example():
+def buses():
     from pybrook.examples.buses import brook
+    return brook
 
 
-def test_demo_example(limit_time, redis_sync, mock_processes):
+def ztm():
+    from pybrook.examples.ztm import brook
+    return brook
+
+
+def demo():
     from pybrook.examples.demo import brook
+    return brook
+
+@pytest.mark.parametrize('get_brook', [ztm, demo])
+def test_example(get_brook, limit_time, redis_sync, mock_processes):
+    brook = get_brook()
     brook.redis_url = TEST_REDIS_URI
     t = Thread(target=brook.run)
     try:
