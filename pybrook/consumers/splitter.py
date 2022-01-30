@@ -71,7 +71,7 @@ class SyncSplitter(SyncStreamConsumer, BaseSplitter):
 
 class GearsSplitter(GearsStreamConsumer, BaseSplitter):
     def register_readers(self, execute: Callable[..., Any],
-                         gears_builder: Any):
+                         gears_builder: Any):   # pragma: no cover
         import json
         from itertools import chain
 
