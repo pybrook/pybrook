@@ -1,3 +1,4 @@
+"""PyBrook CLI entrypoint."""
 import argparse
 from importlib import import_module, reload
 from typing import Dict, List, Union
@@ -19,7 +20,7 @@ class ModelChangeEventHandler(FileSystemEventHandler):
         """
 
         Args:
-            brook: a PyBrook instance.
+            brook: A PyBrook instance.
         """
         self.brook = brook
         self.modified = False
@@ -38,6 +39,16 @@ class ModelChangeEventHandler(FileSystemEventHandler):
 def add_consumer_args(
         parser: argparse.ArgumentParser,
         consumers: List[BaseStreamConsumer]) -> Dict[str, ConsumerConfig]:
+    """
+
+    Args:
+        parser: The main argument parser.
+        consumers: List of consumers to generate CLI options for.
+
+    Returns:
+        A dictionary of consumer configs filled with defaults. Consumer group names are used as keys.
+
+    """
     workers_config = {}
     for c in consumers:
         if not isinstance(c, GearsStreamConsumer):
@@ -53,6 +64,16 @@ def add_consumer_args(
 
 def update_workers_config(args: argparse.Namespace,
                           workers_config: Dict[str, ConsumerConfig]):
+    """
+    Updates `workers_config` with settings loaded from argparse arguments.
+
+    Args:
+        args: An argparse `Namespace`
+        workers_config:  A dictionary of consumer configs to update using settings loaded from the `args` argument.
+
+    Returns:
+
+    """
     for c in workers_config.keys():
         for arg in ('workers', ):
             arg_name: str = c.replace('-', '_') + '_' + arg
@@ -61,13 +82,38 @@ def update_workers_config(args: argparse.Namespace,
 
 def main():
     """
-    CLI Entrypoint for now.
+    CLI Entrypoint.
 
-    Starts PyBrook worker, takes just one argument for now - `<module>:<pybrook_attribute>`.
+    Starts PyBrook workers.
 
     Examples:
+
         ```bash
-        pybrook pybrook.examples.buses:brook
+        ❯ pybrook pybrook.examples.demo:brook --help
+        usage: pybrook [-h]
+               [--location-report:dr-workers LOCATION_REPORT:DR_WORKERS]
+               [--direction-report:dr-workers DIRECTION_REPORT:DR_WORKERS]
+               [--brigade-report:dr-workers BRIGADE_REPORT:DR_WORKERS]
+               [--direction:dr-workers DIRECTION:DR_WORKERS]
+               [--direction:fg-workers DIRECTION:FG_WORKERS]
+               APP
+
+        positional arguments:
+          APP
+
+        options:
+          -h, --help
+          --location-report:dr-workers LOCATION_REPORT:DR_WORKERS
+                                (default: 4)
+          --direction-report:dr-workers DIRECTION_REPORT:DR_WORKERS
+                                (default: 4)
+          --brigade-report:dr-workers BRIGADE_REPORT:DR_WORKERS
+                                (default: 4)
+          --direction:dr-workers DIRECTION:DR_WORKERS
+                                (default: 4)
+          --direction:fg-workers DIRECTION:FG_WORKERS
+                                (default: 4)
+
         ```
     """
 

@@ -15,6 +15,7 @@ def demo():
     from pybrook.examples.demo import brook
     return brook
 
+
 @pytest.mark.parametrize('get_brook', [ztm, demo])
 def test_example(get_brook, limit_time, redis_sync, mock_processes):
     brook = get_brook()

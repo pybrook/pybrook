@@ -8,6 +8,13 @@ per-file-ignores =
     pybrook/config.py:WPS432
 
 ignore =
+    DAR101
+    DAR201
+    DAR003
+    DAR202
+    DAR401
+    WPS462
+    # Wrong ultiline string usage
     E126
     # Continuation line over-indented for hanging indent, let YAPF handle this
     WPS361

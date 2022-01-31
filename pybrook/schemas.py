@@ -1,3 +1,9 @@
+"""
+This module contains definitions of Pydantic models used to tell the frontend about available streams & fields.
+
+This is required, because the OpenAPI documentation doesn't support WebSockets.
+"""
+
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel

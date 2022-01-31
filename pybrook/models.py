@@ -1,3 +1,8 @@
+"""
+This module is responsible for parsing report processing models.
+
+It is the core of PyBrook.
+"""
 import asyncio
 import dataclasses
 import inspect
@@ -14,7 +19,6 @@ import aioredis
 import fastapi
 import pydantic
 import redis
-from asgiref.sync import async_to_sync
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
@@ -42,41 +46,104 @@ from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
 
 class ConsumerGenerator:
+    """
+    An interface describing objects that can generate stream consumers/producers.
+    """
     @classmethod
     def gen_consumers(cls, model: 'PyBrook'):
+        """
+        Implementations of this method should add consumers to the [PyBrook][pybrook.models.PyBrook] instance passed as `model`.
+
+        Args:
+            model: The PyBrook instance processed.
+
+        Raises:
+            NotImplementedError: When used directly.
+        """
         raise NotImplementedError
 
 
 class RouteGenerator:
+    """
+    An interface describing objects that can generate API endpoints.
+    """
     @classmethod
     def gen_routes(cls, api: 'PyBrookApi', redis_dep: aioredis.Redis):
+        """
+        Implementations of this method should add API endpoints
+        to the [PyBrookApi][pybrook.models.PyBrookApi] instance passed as `api`.
+
+        Args:
+            api: The PyBrookApi instance processed.
+            redis_dep: FastAPI redis dependency.
+
+        Raises:
+            NotImplementedError: When used directly.
+        """
         raise NotImplementedError
 
 
 class Registrable:
+    """
+    An interface describing objects that need to perform some tasks, after the initial processing stage is completed.
+
+    This is used to solve issues like circular (recursive) references.
+    """
     def on_registered(self, model: 'PyBrook'):
         """
         Used mostly to evaluate lazy stuff.
 
         Args:
-            model: the model to register at
+            model: The model to register at.
 
         Raises:
-            NotImplementedError: when used directly
+            NotImplementedError: When used directly.
         """
         raise NotImplementedError
 
 
 DTYPE = TypeVar('DTYPE')
+"""
+A TypeVar used by [dependency][pybrook.models.dependency]
+and [historal_dependency][pybrook.models.historical_dependency],
+enable mypy to detect issues with dependency types.
+"""
 
 
 def dependency(src: DTYPE) -> DTYPE:
+    """
+    Depending on `src`, the injected dependency will be value of some field (artificial or loaded from report)
+    or a Redis instance.
+
+    See [Dependency][pybrook.models.Dependency] for implementation details.
+
+    Args:
+        src: Target of the dependency.
+             Should be an instance of [SourceField][pybrook.models.SourceField]
+             or a Redis class (`aioredis.Redis` or `redis.Redis`).
+    Returns:
+         A [HistoricalDependency][pybrook.models.HistoricalDependency],
+         but mypy is made to believe that the type the returned value is [src.value_type][pybrook.models.SourceField.value_type].
+    """
     dep: DTYPE
     dep = Dependency(src)  # type: ignore
     return dep  # noqa: WPS331
 
 
 def historical_dependency(src: DTYPE, history_length: int) -> Sequence[DTYPE]:
+    """
+    See [HistoricalDependency][pybrook.models.HistoricalDependency] for implementation details.
+
+    Args:
+        src: Target of the dependency.
+             Should be an instance of [SourceField][pybrook.models.SourceField].
+             You can also reference artificial fields by passing their name,
+             which is useful for recursive dependencies.
+    Returns:
+        A [HistoricalDependency][pybrook.models.HistoricalDependency],
+        but mypy is made to believe that it's a sequence containing items
+        of type of the corresponding [SourceField][pybrook.models.SourceField].
+    """
     dep: Sequence[DTYPE]
     dep = HistoricalDependency(  # type: ignore
         src,  # type: ignore
@@ -89,7 +156,17 @@ DependencySource = Union['SourceField', Type[aioredis.Redis],
 
 
 class Dependency(Registrable):
+    """
+    This class represents a dependency of an [ArtificialField][pybrook.models.ArtificialField].
+
+    In theory, it can be used directly as an argument default of a calculation function,
+    but it is recommended to use the [dependency][pybrook.models.dependency] callable,
+    which provides mypy compatibility instead.
+    """
     def __init__(self, src: DependencySource):
+        """
+        See [dependency][pybrook.models.dependency].
+        """
         self.is_aioredis: bool = False
         self.is_redis: bool = False
         self.src_field: Optional[SourceField] = self.validate_source_field(src)
@@ -97,6 +174,7 @@ class Dependency(Registrable):
 
     @property
     def value_type(self):
+        """Value type of the source field."""
         return self.src_field.value_type
 
     def validate_source_field(self, src: DependencySource):
@@ -137,8 +215,18 @@ class Dependency(Registrable):
 
 
 class HistoricalDependency(Dependency):
+    """
+    This class represents a historical dependency of an [ArtificialField][pybrook.models.ArtificialField].
+
+    In theory, it can be used directly as an argument default of a calculation function,
+    but it is recommended to use the [historical_dependency][pybrook.models.historical_dependency] callable,
+    which provides mypy compatibility instead.
+    """
     def __init__(self, src_field: Union['SourceField', str],
                  history_length: int):
+        """
+        See [historical_dependency][pybrook.models.historical_dependency].
+        """
         super().__init__(src_field)  # type: ignore
         self.history_length = history_length
         self.is_historical = True
@@ -154,16 +242,17 @@ class HistoricalDependency(Dependency):
 
 
 class SourceField:
+    """
+    A base class for fields ([InputField][pybrook.models.InputField], [ArtificialField][pybrook.models.ArtificialField])
+
+    Provides metadata used to generate producers & consumers.
+    """
     def __init__(self,
                  field_name: str,
                  *,
                  value_type: Type,
                  source_obj: Type['InReport'] = None):
         """
-        A base class for fields (InputField, ArtificialField)
-
-        Provides metadata used to generate producers & consumers.
-
         Args:
             value_type: Field value type.
             field_name: Source field.
@@ -171,7 +260,12 @@ class SourceField:
         """
         self.field_name: str = field_name
         self.source_obj: Optional[Type[InReport]] = source_obj
-        self.value_type: Type = value_type
+        self._value_type: Type = value_type
+
+    @property
+    def value_type(self):
+        """Value type of the source field."""
+        return self._value_type
 
     @property  # type: ignore
     def stream_name(self) -> str:
@@ -219,11 +313,21 @@ class InReportOptions:
 
 
 TOPT = TypeVar('TOPT')
+"""
+A TypeVar used by [OptionsMixin][pybrook.models.OptionsMixin],
+to define the type of the Options.
+"""
 
 
 class OptionsMixin(Generic[TOPT]):
+    """
+    A mixin used by metaclasses [InReportMeta][pybrook.models.InReportMeta] and [OutReportMeta][pybrook.models.OutReportMeta].
+
+    It's responsibility is to add a `pybrook_options` property, that allows setting & validating passed options.
+    """
     @property
     def pybrook_options(self) -> TOPT:
+        """A property containing report options, like `id_field` or `name`."""
         return self._options
 
     @pybrook_options.setter
@@ -241,6 +345,10 @@ class InReportMeta(OptionsMixin[InReportOptions],
     _input_fields: Dict[str, 'InputField']
 
     def __new__(mcs, name, bases, namespace):  # noqa: N804
+        """
+        Initialize an InReport subclass by generating a dictionary
+        of [InputFields][pybrook.models.InputField] from the Pydantic fields provided.
+        """
         cls = super().__new__(mcs, name, bases, namespace)  # noqa: WPS117
         cls._input_fields = {}
         for prop_name, field in cls.__fields__.items():
@@ -249,12 +357,14 @@ class InReportMeta(OptionsMixin[InReportOptions],
         return cls
 
     def __getattr__(cls, item: str) -> SourceField:  # noqa: N805
+        """This enables the `Model.field` syntax used for references in PyBrook models."""
         if not item.startswith('_') and item in cls._input_fields:
             return cls._input_fields[item]
         return super().__getattribute__(item)  # noqa: WPS613
 
     def _validate_options(
             cls, options: InReportOptions) -> InReportOptions:  # noqa: N805
+        """Validate options set by [PyBrook.input()][pybrook.models.PyBrook.input]"""
         try:
             getattr(cls, options.id_field)
         except AttributeError:
@@ -307,6 +417,10 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
     pybrook_options: OutReportOptions
 
     def __new__(mcs, name, bases, namespace):  # noqa: N804
+        """
+        Initialize an [OutReport][pybrook.models.OutReport] subclass by processing all of its ReportFields,
+        and initializing the [pydantic_model][pybrook.models.OutReportMeta.pydantic_model] property.
+        """
         cls = super().__new__(mcs, name, bases, namespace)  # noqa: WPS117
         cls._report_fields = {}
         for prop_name, report_field in inspect.getmembers(cls):
@@ -336,6 +450,9 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
 
     @property  # type: ignore
     def pydantic_model(cls) -> Type[pydantic.BaseModel]:
+        """
+        A Pydantic model describing the output report.
+        """
         pydantic_fields = {
             report_field.destination_field_name:
             (report_field.source_field.value_type, pydantic.Field())
@@ -545,6 +662,11 @@ TO = TypeVar('TO', bound=Type[OutReport])
 
 
 class PyBrookApi:
+    """
+    Represents the HTTP API.
+
+    The default implementation is based on FastAPI.
+    """
     def __init__(self, brook: 'PyBrook'):
         self.fastapi = fastapi.FastAPI()
         self.brook = brook
@@ -575,8 +697,9 @@ class PyBrookApi:
         def shutdown(*args):
             logger.info('set socket active to false')
             self.fastapi.state.socket_active = False
-            asyncio.create_task(self.fastapi.state.redis.close())
-            asyncio.create_task(self.fastapi.state.redis.connection_pool.disconnect())
+            asyncio.create_task(self.fastapi.state.redis.close())  # noqa: WPS219
+            asyncio.create_task(self.fastapi.state.redis.connection_pool.  # noqa: WPS219
+                                disconnect())
 
     async def redis_dependency(self) -> AsyncIterator[aioredis.Redis]:
         """
@@ -588,15 +711,22 @@ class PyBrookApi:
         yield self.fastapi.state.redis
 
     def visit(self, generator: RouteGenerator):
-        # TODO: proper visitor using singledispatchmethod
+        """Visits a route generator to add new endpoints."""
         generator.gen_routes(self,
                              redis_dep=fastapi.Depends(self.redis_dependency))
 
 
 class PyBrook:
+    """This class represents a PyBrook model."""
     def __init__(self,
                  redis_url: str,
                  api_class: Type[PyBrookApi] = PyBrookApi):
+        """
+        Args:
+            redis_url: Url of the Redis Gears server.
+            api_class: API class - you can pass your own implementation of
+            [PyBrookApi][pybrook.models.PyBrookApi] to modify the generated FastAPI app.
+        """
         self.inputs: Dict[str, Type[InReport]] = {}
         self.outputs: Dict[str, Type[OutReport]] = {}
         self.artificial_fields: Dict[str, ArtificialField] = {}
@@ -619,12 +749,20 @@ class PyBrook:
         return self.api.fastapi
 
     def run(self, config: Dict[str, ConsumerConfig] = None):
+        """
+        Runs the workers.
+
+        Args:
+            config: Consumer config, can be skipped - defaults will be used. See [pybrook.__main__][pybrook.__main__] for details.
+        """
+
         config = config or {}
         self.process_model()
         self.manager = WorkerManager(self.consumers, config=config)
         self.manager.run()
 
     def terminate(self):
+        """Terminates all worker processes gracefully."""
         if not self.manager:
             raise RuntimeError('PyBrook is not running!')
         self.manager.terminate()
@@ -636,6 +774,7 @@ class PyBrook:
                  group_field: ReportField,
                  time_field: ReportField,
                  direction_field: ReportField = None):
+        """Use this method to set metadata used by frontend."""
         self.api.schema.latitude_field = self._gen_field_info(latitude_field)
         self.api.schema.longitude_field = self._gen_field_info(longitude_field)
         self.api.schema.group_field = self._gen_field_info(group_field)
@@ -646,6 +785,12 @@ class PyBrook:
 
     def input(  # noqa: A003
             self, name: str = None, *, id_field: str) -> Callable[[TI], TI]:
+        """
+        Register an input report.
+
+        Returns:
+            A decorator, which accepts an InReport as an argument.
+        """
         def wrapper(cls) -> TI:
             name_safe = name or cls.__name__
             self.inputs[name_safe] = cls
@@ -657,6 +802,12 @@ class PyBrook:
         return wrapper
 
     def output(self, name: str = None) -> Callable[[TO], TO]:
+        """
+        Register an output report.
+
+        Returns:
+            A decorator, which accepts an OutReport as an argument.
+        """
         def wrapper(cls) -> TO:
             name_safe = name or cls.__name__
             self.outputs[name_safe] = cls
@@ -667,6 +818,13 @@ class PyBrook:
         return wrapper
 
     def artificial_field(self, name: str = None) -> Callable[[Callable], Any]:
+        """
+        Register an artificial field.
+
+        Returns:
+            A decorator, which accepts a callable as an argument.
+            The callable provided is used to calculate the value of the artificial field.
+        """
         def wrapper(fun: Callable) -> Any:
             field = ArtificialField(fun, name=name)
             self.artificial_fields[name or fun.__name__] = field
@@ -676,9 +834,16 @@ class PyBrook:
         return wrapper
 
     def visit(self, generator: ConsumerGenerator):
+        """Visit a consumer generator and let it generate consumers."""
         generator.gen_consumers(self)
 
     def add_consumer(self, consumer: BaseStreamConsumer):
+        """
+        This is used by consumer generators.
+
+        For now it just adds a new consumer to the consumer list.
+        """
+
         self.consumers.append(consumer)
 
     def _gen_field_info(self, field: ReportField) -> FieldInfo:

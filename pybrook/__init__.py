@@ -1,3 +1,5 @@
+"""This module contains package metadata"""
+
 try:
     import importlib.metadata as importlib_metadata  # noqa: WPS301
 except ModuleNotFoundError:  # pragma: no cover

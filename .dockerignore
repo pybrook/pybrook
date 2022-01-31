@@ -5,3 +5,4 @@ thesis/
 .*
 pybrook-frontend/
 .pytest_cache/
+docs_html

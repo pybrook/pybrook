@@ -1,5 +1,6 @@
 site_name: pybrook
-
+site_dir: docs_html
+use_directory_urls: false
 nav:
   - Introduction: "index.md"
   - Reference:
@@ -76,6 +77,7 @@ plugins:
             show_bases: True
 
           selection:
+            members: true
             filters:
               - "!^__config__"
               - "!^__json_encoder__"
