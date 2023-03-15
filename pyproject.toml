@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pybrook"
-version = "0.1.1"
+version = "0.1.2"
 description = ""
 authors = ["Michał Rokita <mrokita@mrokita.pl>"]
 readme = "README.md"
