@@ -71,7 +71,6 @@ def test_example(get_brook, limit_time, redis_sync, mock_processes):
                 assert res.status_code == 200
         brook.terminate()
         t.join()
-        print(redis_sync.execute_command('RG.DUMPREGISTRATIONS'))
         assert redis_sync.xlen(':ztm-report:split') == 2
         assert redis_sync.xlen(':location-report') == 2
     finally:

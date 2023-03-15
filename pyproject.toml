@@ -11,22 +11,23 @@ pybrook = "pybrook.__main__:main"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-aioredis = {extras = ["hiredis"], version = "^2.0.0"}
-fastapi = "^0.70.0"
-uvicorn = {extras = ["standard"], version = "^0.16.0"}
+fastapi = "^0.87.0"
+uvicorn = {extras = ["standard"], version = "^0.20.0"}
 pytest = "^6.2.5"
-redis = "^3.5.3"
+redis = {extras = ["asyncio"], version = "^4.5.1"}
 loguru = "^0.5.3"
 Pillow = "^8.4.0"
 pandoc-crossref = "^0.1.1"
 gunicorn = "^20.1.0"
 httpx = "^0.21.1"
 watchdog = "^2.1.6"
-uvloop = "^0.16.0"
+uvloop = "^0.17.0"
 orjson = "^3.6.5"
 locust = "^2.6.1"
+pydantic = "^1.10.6"
 
-[tool.poetry.dev-dependencies]
+
+[tool.poetry.group.dev.dependencies]
 # docs
 mkdocstrings = "^0.17.0"
 mkdocs = "^1.1.2"
@@ -49,7 +50,6 @@ flake8-string-format = "^0.3.0"
 flake8-tidy-imports = "^4.2.1"
 flake8-variables-names = "^0.0.4"
 pep8-naming = "^0.12.1"
-wps-light = "^0.15.2"
 mypy = "^0.910"
 
 # tests
@@ -62,6 +62,8 @@ ptpython = "^3.0.7"
 pytest-asyncio = "^0.15.1"
 types-redis = "^3.5.15"
 locust = "^2.5.0"
+
+wps-light = "^0.16.1"
 
 [tool.isort]
 line_length = 90

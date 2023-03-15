@@ -34,7 +34,7 @@ import multiprocessing
 import signal
 import threading
 
-import aioredis
+import redis.asyncio as aioredis
 import pytest
 import redis
 

@@ -19,7 +19,7 @@
 import dataclasses
 from typing import Callable, Dict, List, Type, Union
 
-import aioredis
+import redis.asyncio as aioredis
 import pydantic
 import redis
 

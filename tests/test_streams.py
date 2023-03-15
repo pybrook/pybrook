@@ -38,7 +38,7 @@ import threading
 from time import sleep
 from typing import Dict, List
 
-import aioredis
+import redis.asyncio as aioredis
 import pytest
 import redis
 from loguru import logger

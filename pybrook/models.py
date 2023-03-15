@@ -47,7 +47,7 @@ from typing import (  # noqa: WPS235
     Sequence, Type, TypeVar, Union, get_type_hints,
 )
 
-import aioredis
+import redis.asyncio as aioredis
 import fastapi
 import pydantic
 import redis

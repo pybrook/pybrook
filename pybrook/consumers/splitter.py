@@ -21,7 +21,7 @@ import pickle  # noqa: S403
 from textwrap import dedent
 from typing import Any, Callable, Dict, Iterable
 
-import aioredis
+import redis.asyncio as aioredis
 import redis
 from loguru import logger
 

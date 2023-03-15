@@ -25,7 +25,7 @@ from concurrent import futures
 from enum import Enum
 from typing import Dict, Iterable, MutableMapping, Set, Tuple, Union
 
-import aioredis
+import redis.asyncio as aioredis
 import redis
 from loguru import logger
 
