@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Michał Rokita <mrokita@mrokita.pl>"]
 readme = "README.md"
+license = "GPL-3.0-or-later"
 
 [tool.poetry.scripts]
 pybrook = "pybrook.__main__:main"
