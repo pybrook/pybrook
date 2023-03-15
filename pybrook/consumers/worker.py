@@ -99,15 +99,16 @@ class ConsumerConfig:
 class WorkerManager:
     def __init__(self,
                  consumers: Iterable[BaseStreamConsumer],
-                 config: Dict[str, ConsumerConfig] = None):
+                 config: Dict[str, ConsumerConfig] = None,
+                 enable_gears: bool = False):
         self.consumers = consumers
         self.config = config or {}
         self.redis_urls: Set[str] = {c.redis_url for c in consumers}
         self.gears_consumers: List[GearsStreamConsumer] = [
-            c for c in consumers if isinstance(c, GearsStreamConsumer)
+            c for c in consumers if enable_gears and isinstance(c, GearsStreamConsumer)
         ]
         self.regular_consumers: List[BaseStreamConsumer] = [
-            c for c in consumers if not isinstance(c, GearsStreamConsumer)
+            c for c in consumers if not enable_gears or not isinstance(c, GearsStreamConsumer)
         ]
         self.processes: List[multiprocessing.Process] = []
         self._kill_on_terminate = False
