@@ -5,7 +5,6 @@ nav:
   - Introduction: "index.md"
   - Reference:
       - pybrook:
-          - __init__: "reference/__init__.md"
           - __main__: "reference/__main__.md"
           - schemas: "reference/schemas.md"
           - models: "reference/models.md"
@@ -75,9 +74,7 @@ plugins:
           rendering:
             show_if_no_docstring: true
             show_bases: True
-
           selection:
-            members: true
             filters:
               - "!^__config__"
               - "!^__json_encoder__"
