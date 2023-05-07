@@ -24,6 +24,6 @@ services:
       - 8089:8089
     command: locust -H http://api:8000
   redis:
-    image: redislabs/redisgears:latest
+    image: redislabs/redisgears:1.0.6
 
 

@@ -100,7 +100,7 @@ class WorkerManager:
     def __init__(self,
                  consumers: Iterable[BaseStreamConsumer],
                  config: Dict[str, ConsumerConfig] = None,
-                 enable_gears: bool = False):
+                 enable_gears: bool = True):
         self.consumers = consumers
         self.config = config or {}
         self.redis_urls: Set[str] = {c.redis_url for c in consumers}
