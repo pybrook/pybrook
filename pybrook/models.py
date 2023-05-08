@@ -546,8 +546,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                     else:
                         last_ping = time()
                 messages = await redis_conn.xread({stream_name: last_msg},
-                                                  count=WEBSOCKET_XREAD_BLOCK,
-                                                  block=WEBSOCKET_XREAD_COUNT)
+                                                  count=WEBSOCKET_XREAD_COUNT,
+                                                  block=WEBSOCKET_XREAD_BLOCK)
                 if messages:
                     # Wiadomości w strumieniach są mapami
                     for m_data in dict(messages)[stream_name]:
@@ -557,6 +557,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                                 model_cls(
                                     **decode_stream_message(payload)).json())
                         except ConnectionClosedOK:
+                            active = False
+                        except RuntimeError:
                             active = False
             try:
                 await websocket.close()

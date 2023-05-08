@@ -104,7 +104,7 @@ class GearsSplitter(GearsStreamConsumer, BaseSplitter):
 
         for s in self._input_streams:
             gears_builder("StreamReader").foreach(process_message).register(
-                s, trimStream=False, mode="sync", batch=1000)
+                s, trimStream=False, mode="sync", batch=1000, duration=1)
 
     def register_builder(self, conn: redis.Redis):
         scope = {
