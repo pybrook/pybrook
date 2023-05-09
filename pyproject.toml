@@ -17,8 +17,6 @@ uvicorn = {extras = ["standard"], version = "^0.20.0"}
 pytest = "^6.2.5"
 redis = {extras = ["asyncio"], version = "^4.5.1"}
 loguru = "^0.5.3"
-Pillow = "^8.4.0"
-pandoc-crossref = "^0.1.1"
 gunicorn = "^20.1.0"
 httpx = "^0.21.1"
 watchdog = "^2.1.6"
