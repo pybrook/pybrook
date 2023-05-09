@@ -1,6 +1,6 @@
 services:
   api:
-    image: pybrook:latest
+    image: pybrook/pybrook:latest
     build:
       context: .
     environment:
@@ -9,7 +9,7 @@ services:
       - 8000:8000
     command: gunicorn pybrook.examples.demo:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
   worker:
-    image: pybrook:latest
+    image: pybrook/pybrook:latest
     depends_on:
       - api
     environment:
@@ -17,7 +17,7 @@ services:
       DEFAULT_WORKERS: 8
     command: pybrook pybrook.examples.demo:brook
   locust:
-    image: pybrook:latest
+    image: pybrook/pybrook:latest
     depends_on:
       - api
     ports:

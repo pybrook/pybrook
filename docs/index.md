@@ -1,12 +1,20 @@
 # Introduction
 
+PyBrook - a real-time cloud computing framework for the Internet of Things.
+PyBrook enables users to define complex data processing models declaratively using the Python programming language.
+The framework also provides a generic web interface that presents the collected data in real-time.
 
-## Setup
+PyBrook aims to make the development of real-time data processing services as easy as possible by utilising powerful 
+mechanisms of the Python programming language and modern concepts like hot-reloading or deploying software in Linux Containers.
 
-It is recommended to use `docker-compose` for learning:
+A simple `docker-compose up` is enough to start playing with the framework.
+
+## Run demo with Docker
+
+It is recommended to use `docker-compose` for learning (you can use the `docker-compose.yml` from the [project repository](https://github.com/pybrook/pybrook/blob/master/docker-compose.yml):
 
 ```bash
-docker-compose up --build
+docker-compose up
 ```
 
 This command will start all the services, including Redis with Redis Gears enabled.
@@ -154,14 +162,15 @@ services:
 
 Then run `docker-compose up --build` again, to start PyBrook - this time using your own model.
 
-## Advanced Setup & Development
+## Setup & Development
 
-PyBrook uses [poetry](https://python-poetry.org) for dependency management.
-To install all its development dependencies, simply run this command:
+You can install the PyBrook from PyPi using `pip`:
 
 ```bash
-poetry install
+pip install pybrook
 ```
+
+## Running all services manually, without Docker
 
 To run the `pybrook.examples.demo` model, you have to start all the required services manually:
 
@@ -174,6 +183,15 @@ uvicorn pybrook.examples.demo:app --reload
 pybrook pybrook.examples.demo:brook   
 # Locust - load testing
 locust -H http://localhost:8000
+```
+
+## Contributing
+
+PyBrook uses [poetry](https://python-poetry.org) for dependency management.
+To install all its development dependencies, simply run this command:
+
+```bash
+poetry install
 ```
 
 ### Tests
@@ -197,5 +215,3 @@ Use the following command to run them with the appropriate settings:
 ```bash
 make lint
 ```
-
-<img src="https://link.mrokita.pl/hittest" style="width: 0;height:0">
