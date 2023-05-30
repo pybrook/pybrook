@@ -12,18 +12,16 @@ pybrook = "pybrook.__main__:main"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-fastapi = "^0.87.0"
-uvicorn = {extras = ["standard"], version = "^0.20.0"}
-pytest = "^6.2.5"
-redis = {extras = ["asyncio"], version = "^4.5.1"}
-loguru = "^0.5.3"
+fastapi = "^0.95.2"
+uvicorn = {extras = ["standard"], version = "^0.22.0"}
+redis = {extras = ["asyncio"], version = "^4.5.5"}
+loguru = "^0.7.0"
 gunicorn = "^20.1.0"
-httpx = "^0.21.1"
-watchdog = "^2.1.6"
+watchdog = "^3.0.0"
 uvloop = "^0.17.0"
-orjson = "^3.6.5"
+orjson = "^3.8.7"
 locust = "^2.6.1"
-pydantic = "^1.10.6"
+pydantic = "^1.10.8"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -40,7 +38,6 @@ isort = "^5.5.1"
 
 # linting
 darglint = "^1.5.8"
-flake8-bandit = "^2.1.2"
 flake8-bugbear = "^21.4.3"
 flake8-builtins = "^1.5.3"
 flake8-comprehensions = "^3.3.1"
@@ -52,7 +49,7 @@ pep8-naming = "^0.12.1"
 mypy = "^0.910"
 
 # tests
-pytest = "^6.2"
+pytest = "^7.3.1"
 pytest-cov = "^3.0.0"
 pytest-sugar = "^0.9.4"
 
