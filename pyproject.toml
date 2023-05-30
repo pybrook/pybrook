@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pybrook"
-version = "0.1.5"
+version = "0.1.6"
 description = "PyBrook - a real-time cloud computing framework for the Internet of Things."
 repository = "https://github.com/pybrook/pybrook"
 authors = ["Michał Rokita <mrokita@mrokita.pl>"]
