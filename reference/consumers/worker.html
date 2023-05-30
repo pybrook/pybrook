@@ -13,7 +13,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.3">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
     
     
       
@@ -21,10 +21,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.c4a75a56.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.26e3688c.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.a0c5b2b5.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ecc896b0.min.css">
       
       
 
@@ -119,25 +119,31 @@
       </div>
     </div>
     
-      <form class="md-header__option" data-md-component="palette">
-        
+      
+        <form class="md-header__option" data-md-component="palette">
           
-          <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="pink"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+            
+            
+            
+            <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="pink"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+            
+              <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6zm0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4zM7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+              </label>
+            
           
-            <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6zm0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4zM7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-            </label>
+            
+            
+            
+            <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="red"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+            
+              <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3Z"/></svg>
+              </label>
+            
           
-        
-          
-          <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="red"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
-          
-            <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3Z"/></svg>
-            </label>
-          
-        
-      </form>
+        </form>
+      
     
     
     
@@ -1014,6 +1020,7 @@
 <code class="highlight language-python"><span class="n">workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_WORKERS</span></code>
   
   <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
       <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
   </span>
 
@@ -1494,7 +1501,8 @@
 <span class="normal">170</span>
 <span class="normal">171</span>
 <span class="normal">172</span>
-<span class="normal">173</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span> <span class="nc">WorkerManager</span><span class="p">:</span>
+<span class="normal">173</span>
+<span class="normal">174</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span> <span class="nc">WorkerManager</span><span class="p">:</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                  <span class="n">consumers</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">BaseStreamConsumer</span><span class="p">],</span>
                  <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ConsumerConfig</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1532,16 +1540,17 @@
             <span class="n">redis_conn</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">from_url</span><span class="p">(</span><span class="n">redis_url</span><span class="p">,</span>
                                         <span class="n">decode_responses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                                         <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">acquire_gears_registration_lock</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
-            <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span>
-                <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.DUMPREGISTRATIONS&#39;</span><span class="p">)</span>
-            <span class="p">]</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
-                <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.UNREGISTER&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">consumer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gears_consumers</span><span class="p">:</span>
-                <span class="n">consumer</span><span class="o">.</span><span class="n">register_builder</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
-            <span class="n">redis_conn</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">&#39;RG.REGISTERLOCK&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gears_consumers</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">acquire_gears_registration_lock</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
+                <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.DUMPREGISTRATIONS&#39;</span><span class="p">)</span>
+                <span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
+                    <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.UNREGISTER&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">consumer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gears_consumers</span><span class="p">:</span>
+                    <span class="n">consumer</span><span class="o">.</span><span class="n">register_builder</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
+                <span class="n">redis_conn</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">&#39;RG.REGISTERLOCK&#39;</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">proc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">processes</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">proc</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
@@ -1780,8 +1789,7 @@
 
       <details class="quote">
         <summary>Source code in <code>pybrook/consumers/worker.py</code></summary>
-        <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">163</span>
-<span class="normal">164</span>
+        <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">164</span>
 <span class="normal">165</span>
 <span class="normal">166</span>
 <span class="normal">167</span>
@@ -1790,7 +1798,8 @@
 <span class="normal">170</span>
 <span class="normal">171</span>
 <span class="normal">172</span>
-<span class="normal">173</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">acquire_gears_registration_lock</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">redis_conn</span><span class="p">:</span> <span class="n">redis</span><span class="o">.</span><span class="n">Redis</span><span class="p">):</span>
+<span class="normal">173</span>
+<span class="normal">174</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">acquire_gears_registration_lock</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">redis_conn</span><span class="p">:</span> <span class="n">redis</span><span class="o">.</span><span class="n">Redis</span><span class="p">):</span>
     <span class="k">with</span> <span class="n">redis_conn</span><span class="o">.</span><span class="n">pipeline</span><span class="p">()</span> <span class="k">as</span> <span class="n">p</span><span class="p">:</span>
         <span class="n">p</span><span class="o">.</span><span class="n">watch</span><span class="p">(</span><span class="s1">&#39;RG.REGISTERLOCK&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="s1">&#39;RG.REGISTERLOCK&#39;</span><span class="p">):</span>
@@ -1848,7 +1857,8 @@
 <span class="normal">149</span>
 <span class="normal">150</span>
 <span class="normal">151</span>
-<span class="normal">152</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">152</span>
+<span class="normal">153</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">processes</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;Already running!&#39;</span><span class="p">)</span>
     <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminate</span><span class="p">)</span>
@@ -1860,16 +1870,17 @@
         <span class="n">redis_conn</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">from_url</span><span class="p">(</span><span class="n">redis_url</span><span class="p">,</span>
                                     <span class="n">decode_responses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                                     <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">acquire_gears_registration_lock</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
-        <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span>
-            <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.DUMPREGISTRATIONS&#39;</span><span class="p">)</span>
-        <span class="p">]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
-            <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.UNREGISTER&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">consumer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gears_consumers</span><span class="p">:</span>
-            <span class="n">consumer</span><span class="o">.</span><span class="n">register_builder</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
-        <span class="n">redis_conn</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">&#39;RG.REGISTERLOCK&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gears_consumers</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">acquire_gears_registration_lock</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
+            <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.DUMPREGISTRATIONS&#39;</span><span class="p">)</span>
+            <span class="p">]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
+                <span class="n">redis_conn</span><span class="o">.</span><span class="n">execute_command</span><span class="p">(</span><span class="s1">&#39;RG.UNREGISTER&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">consumer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gears_consumers</span><span class="p">:</span>
+                <span class="n">consumer</span><span class="o">.</span><span class="n">register_builder</span><span class="p">(</span><span class="n">redis_conn</span><span class="p">)</span>
+            <span class="n">redis_conn</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">&#39;RG.REGISTERLOCK&#39;</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">proc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">processes</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">proc</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
@@ -1896,14 +1907,14 @@
 
       <details class="quote">
         <summary>Source code in <code>pybrook/consumers/worker.py</code></summary>
-        <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">154</span>
-<span class="normal">155</span>
+        <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">155</span>
 <span class="normal">156</span>
 <span class="normal">157</span>
 <span class="normal">158</span>
 <span class="normal">159</span>
 <span class="normal">160</span>
-<span class="normal">161</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">spawn_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="normal">161</span>
+<span class="normal">162</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">spawn_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
     <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regular_consumers</span><span class="p">:</span>
         <span class="n">consumer_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">consumer_group_name</span><span class="p">,</span>
                                           <span class="n">ConsumerConfig</span><span class="p">())</span>
@@ -2008,7 +2019,7 @@
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.efa0ade1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.b4d07000.min.js"></script>
       
     
   </body>
