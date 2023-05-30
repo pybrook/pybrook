@@ -134,16 +134,17 @@ class WorkerManager:
             redis_conn = redis.from_url(redis_url,
                                         decode_responses=True,
                                         encoding='utf-8')
-            self.acquire_gears_registration_lock(redis_conn)
-            ids = [
-                r[1]
-                for r in redis_conn.execute_command('RG.DUMPREGISTRATIONS')
-            ]
-            for i in ids:
-                redis_conn.execute_command('RG.UNREGISTER', i)
-            for consumer in self.gears_consumers:
-                consumer.register_builder(redis_conn)
-            redis_conn.delete('RG.REGISTERLOCK')
+            if self.gears_consumers:
+                self.acquire_gears_registration_lock(redis_conn)
+                ids = [
+                    r[1]
+                    for r in redis_conn.execute_command('RG.DUMPREGISTRATIONS')
+                ]
+                for i in ids:
+                    redis_conn.execute_command('RG.UNREGISTER', i)
+                for consumer in self.gears_consumers:
+                    consumer.register_builder(redis_conn)
+                redis_conn.delete('RG.REGISTERLOCK')
         for proc in self.processes:
             try:
                 proc.join()

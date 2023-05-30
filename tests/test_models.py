@@ -29,7 +29,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-
+import time
 from threading import Thread
 
 import pytest
@@ -69,6 +69,7 @@ def test_example(get_brook, limit_time, redis_sync, mock_processes):
                                       "line": "119"
                                   })
                 assert res.status_code == 200
+        time.sleep(1)
         brook.terminate()
         t.join()
         assert redis_sync.xlen(':ztm-report:split') == 2

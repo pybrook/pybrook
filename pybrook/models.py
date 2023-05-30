@@ -782,7 +782,7 @@ class PyBrook:
         self.process_model()
         return self.api.fastapi
 
-    def run(self, config: Dict[str, ConsumerConfig] = None):
+    def run(self, config: Dict[str, ConsumerConfig] = None, enable_gears: bool = False):
         """
         Runs the workers.
 
@@ -792,7 +792,7 @@ class PyBrook:
 
         config = config or {}
         self.process_model()
-        self.manager = WorkerManager(self.consumers, config=config)
+        self.manager = WorkerManager(self.consumers, config=config, enable_gears=enable_gears)
         self.manager.run()
 
     def terminate(self):

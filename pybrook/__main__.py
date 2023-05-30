@@ -85,11 +85,14 @@ def add_consumer_args(
     for c in consumers:
         if not isinstance(c, GearsStreamConsumer):
             consumer_config = ConsumerConfig()
-            parser.add_argument(
-                f'--{c.consumer_group_name}-workers',
-                type=int,
-                help='(default: %(default)s)',  # noqa: WPS323
-                default=consumer_config.workers)
+            try:
+                parser.add_argument(
+                    f'--{c.consumer_group_name}-workers',
+                    type=int,
+                    help='(default: %(default)s)',  # noqa: WPS323
+                    default=consumer_config.workers)
+            except argparse.ArgumentError:
+                ... # OK, this argument already exists
             workers_config[c.consumer_group_name] = consumer_config
     return workers_config
 
@@ -151,6 +154,7 @@ def main():
 
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('-h', '--help', action='store_true')
+    parser.add_argument('-rg', '--enable-gears', action='store_true')
     parser.add_argument('APP', nargs=1)
     args: argparse.Namespace
     unknown: List[str]
@@ -176,7 +180,7 @@ def main():
         observer = Observer()
         observer.schedule(handler, model_module.__file__)  # noqa: WPS609
         observer.start()
-        brook.run(config=workers_config)
+        brook.run(config=workers_config, enable_gears=args.enable_gears)
         observer.stop()
         observer.join()
         reload(model_module)

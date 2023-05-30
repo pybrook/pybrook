@@ -1,3 +1,8 @@
+[![PyPI](https://img.shields.io/pypi/v/pybrook?style=for-the-badge&color=purple)](https://pypi.org/project/pybrook/)
+[![docs](https://img.shields.io/badge/docs-mkdocs+mkdocstrings-lightblue?style=for-the-badge)](https://pybrook.github.io/pybrook/)
+![Python](https://img.shields.io/badge/python-3.7%2B-blue?style=for-the-badge)
+![Coverage](https://img.shields.io/badge/coverage-81%25-green?style=for-the-badge)
+
 # Introduction
 
 PyBrook - a real-time cloud computing framework for the Internet of Things.
@@ -157,7 +162,7 @@ services:
       - 8089:8089
     command: locust -H http://api:8000
   redis:
-    image: redislabs/redisgears:latest
+    image: redislabs/redisgears:1.0.9
 ```
 
 Then run `docker-compose up --build` again, to start PyBrook - this time using your own model.
@@ -176,11 +181,11 @@ To run the `pybrook.examples.demo` model, you have to start all the required ser
 
 ```bash
 # Redis + Redis Gears
-docker run --net=host -d redislabs/redisgears
+docker run --net=host -d redislabs/redisgears:1.0.9
 # HTTP API based on pybrook.examples.demo - uvicorn
 uvicorn pybrook.examples.demo:app --reload  
 # PyBrook workers based on pybrook.examples.demo 
-pybrook pybrook.examples.demo:brook   
+pybrook pybrook.examples.demo:brook -rg 
 # Locust - load testing
 locust -H http://localhost:8000
 ```
