@@ -42,32 +42,21 @@ import signal
 from pathlib import Path
 from time import time
 from typing import (  # noqa: WPS235
-    Any,
-    AsyncIterator,
-    Callable,
-    Dict,
-    Generic,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Type,
-    TypeVar,
-    Union,
-    get_type_hints,
-    Iterable,
+    Any, AsyncIterator, Callable, Dict, Generic, Iterable, List, Mapping,
+    Optional, Sequence, Type, TypeVar, Union, get_type_hints,
 )
 
-import redis.asyncio as aioredis
 import fastapi
 import pydantic
 import redis
+import redis.asyncio as aioredis
 from loguru import logger
 from pydantic import ValidationError
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 from websockets.exceptions import ConnectionClosedOK
 
+import pybrook.redis_plugin_integration as redis_plugin
 from pybrook.config import (
     MSG_ID_FIELD,
     SPECIAL_CHAR,
@@ -84,7 +73,6 @@ from pybrook.consumers.field_generator import (
 )
 from pybrook.consumers.worker import ConsumerConfig, WorkerManager
 from pybrook.encoding import decode_stream_message, encode_stream_message
-import pybrook.redis_plugin_integration as redis_plugin
 from pybrook.schemas import FieldInfo, PyBrookSchema, StreamInfo
 
 
@@ -92,7 +80,6 @@ class ConsumerGenerator:
     """
     An interface describing objects that can generate stream consumers/producers.
     """
-
     @classmethod
     def gen_consumers(cls, model: "PyBrook"):
         """
@@ -111,7 +98,6 @@ class RouteGenerator:
     """
     An interface describing objects that can generate API endpoints.
     """
-
     @classmethod
     def gen_routes(cls, api: "PyBrookApi", redis_dep: aioredis.Redis):
         """
@@ -134,7 +120,6 @@ class Registrable:
 
     This is used to solve issues like circular (recursive) references.
     """
-
     def on_registered(self, model: "PyBrook"):
         """
         Used mostly to evaluate lazy stuff.
@@ -198,7 +183,8 @@ def historical_dependency(src: DTYPE, history_length: int) -> Sequence[DTYPE]:
     return dep  # noqa: WPS331
 
 
-DependencySource = Union["SourceField", Type[aioredis.Redis], Type[redis.Redis]]
+DependencySource = Union["SourceField", Type[aioredis.Redis],
+                         Type[redis.Redis]]
 
 
 class Dependency(Registrable):
@@ -209,7 +195,6 @@ class Dependency(Registrable):
     but it is recommended to use the [dependency][pybrook.models.dependency] callable,
     which provides mypy compatibility instead.
     """
-
     def __init__(self, src: DependencySource):
         """
         See [dependency][pybrook.models.dependency].
@@ -226,17 +211,14 @@ class Dependency(Registrable):
 
     def validate_source_field(self, src: DependencySource):
         self.is_aioredis = type(src) == type and issubclass(  # noqa: WPS516
-            src, aioredis.Redis
-        )
+            src, aioredis.Redis)
         self.is_redis = type(src) == type and issubclass(  # noqa: WPS516
-            src, redis.Redis
-        )
+            src, redis.Redis)
         if isinstance(src, SourceField):
             return src
         elif not (self.is_aioredis or self.is_redis):
             raise ValueError(
-                f"{src} is not an instance of SourceField or a Redis class"
-            )
+                f"{src} is not an instance of SourceField or a Redis class")
 
     def on_registered(self, model: "PyBrook"):
         """
@@ -254,8 +236,7 @@ class Dependency(Registrable):
             except KeyError as e:
                 raise ValueError(
                     f"Lazy evaluation is only supported for artificial fields,"
-                    f" and {self.src_field} is not one of these."
-                ) from e
+                    f" and {self.src_field} is not one of these.") from e
 
     def __repr__(self):
         if self.is_aioredis:
@@ -273,8 +254,8 @@ class HistoricalDependency(Dependency):
     but it is recommended to use the [historical_dependency][pybrook.models.historical_dependency] callable,
     which provides mypy compatibility instead.
     """
-
-    def __init__(self, src_field: Union["SourceField", str], history_length: int):
+    def __init__(self, src_field: Union["SourceField", str],
+                 history_length: int):
         """
         See [historical_dependency][pybrook.models.historical_dependency].
         """
@@ -298,10 +279,11 @@ class SourceField:
 
     Provides metadata used to generate producers & consumers.
     """
-
-    def __init__(
-        self, field_name: str, *, value_type: Type, source_obj: Type["InReport"] = None
-    ):
+    def __init__(self,
+                 field_name: str,
+                 *,
+                 value_type: Type,
+                 source_obj: Type["InReport"] = None):
         """
         Args:
             value_type: Field value type.
@@ -327,8 +309,7 @@ class SourceField:
         return (
             f'<{self.__class__.__name__} name={self.field_name},'
             f' report_class={self.source_obj.__name__ if self.source_obj else "artificial"},'
-            f' value_type={self.value_type.__name__}>'
-        )
+            f' value_type={self.value_type.__name__}>')
 
 
 class ReportField:
@@ -340,12 +321,10 @@ class ReportField:
         self.owner: Type[OutReport]
 
     def __repr__(self):
-        return (
-            f"<{self.__class__.__name__} "
-            f"destination_field_name='{self.destination_field_name}' "
-            f"source_field={self.source_field} "
-            f"owner={self.owner}>"
-        )
+        return (f"<{self.__class__.__name__} "
+                f"destination_field_name='{self.destination_field_name}' "
+                f"source_field={self.source_field} "
+                f"owner={self.owner}>")
 
     @property
     def destination_stream_name(self):
@@ -379,7 +358,6 @@ class OptionsMixin(Generic[TOPT]):
 
     It's responsibility is to add a `pybrook_options` property, that allows setting & validating passed options.
     """
-
     @property
     def pybrook_options(self) -> TOPT:
         """A property containing report options, like `id_field` or `name`."""
@@ -394,7 +372,8 @@ class OptionsMixin(Generic[TOPT]):
         raise NotImplementedError
 
 
-class InReportMeta(OptionsMixin[InReportOptions], pydantic.main.ModelMetaclass):
+class InReportMeta(OptionsMixin[InReportOptions],
+                   pydantic.main.ModelMetaclass):
     pybrook_options: InReportOptions
     _input_fields: Dict[str, "InputField"]
 
@@ -406,7 +385,8 @@ class InReportMeta(OptionsMixin[InReportOptions], pydantic.main.ModelMetaclass):
         cls = super().__new__(mcs, name, bases, namespace)  # noqa: WPS117
         cls._input_fields = {}
         for prop_name, field in cls.__fields__.items():
-            cls._input_fields[prop_name] = InputField(cls, field)  # type: ignore
+            cls._input_fields[prop_name] = InputField(cls,
+                                                      field)  # type: ignore
         return cls
 
     def __getattr__(cls, item: str) -> SourceField:  # noqa: N805
@@ -415,42 +395,42 @@ class InReportMeta(OptionsMixin[InReportOptions], pydantic.main.ModelMetaclass):
             return cls._input_fields[item]
         return super().__getattribute__(item)  # noqa: WPS613
 
-    def _validate_options(cls, options: InReportOptions) -> InReportOptions:  # noqa: N805
+    def _validate_options(
+            cls, options: InReportOptions) -> InReportOptions:  # noqa: N805
         """Validate options set by [PyBrook.input()][pybrook.models.PyBrook.input]"""
         try:
             getattr(cls, options.id_field)
         except AttributeError:
             raise RuntimeError(
                 f"Invalid id_field! {cls.__name__} "
-                f'has no attribute "{options.id_field}".'
-            ) from None
+                f'has no attribute "{options.id_field}".') from None
         return options
 
 
-class InReport(
-    ConsumerGenerator, RouteGenerator, pydantic.BaseModel, metaclass=InReportMeta
-):
+class InReport(ConsumerGenerator,
+               RouteGenerator,
+               pydantic.BaseModel,
+               metaclass=InReportMeta):
     @classmethod
     def gen_consumers(cls, model: "PyBrook"):
         model.add_input_tagger(
             redis_plugin.InputTagger(
                 stream_key=cls.pybrook_options.stream_name,
                 obj_id_field=cls.pybrook_options.id_field,
-            )
-        )
+            ))
 
     @classmethod
     def gen_routes(cls, api: "PyBrookApi", redis_dep: aioredis.Redis):
-        @api.fastapi.post(
-            f"/{cls.pybrook_options.name}", name=f"Add {cls.pybrook_options.name}"
-        )
+        @api.fastapi.post(f"/{cls.pybrook_options.name}",
+                          name=f"Add {cls.pybrook_options.name}")
         async def add_report(
             report: cls = fastapi.Body(...),  # type: ignore
             redis_conn: aioredis.Redis = redis_dep,
         ):
             await redis_conn.xadd(
                 cls.pybrook_options.stream_name,
-                encode_stream_message(report.dict(by_alias=False)),  # type: ignore
+                encode_stream_message(
+                    report.dict(by_alias=False)),  # type: ignore
             )
 
 
@@ -490,10 +470,8 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
             str,
             pydantic.Field(
                 title="Message ID",
-                description=(
-                    f"Message id - {{object ID}}"
-                    f"{SPECIAL_CHAR}{{msg index for object}}"
-                ),
+                description=(f"Message id - {{object ID}}"
+                             f"{SPECIAL_CHAR}{{msg index for object}}"),
             ),
         )
         cls._model = pydantic.create_model(
@@ -522,10 +500,8 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
             str,
             pydantic.Field(
                 title="Message ID",
-                description=(
-                    f"Message id - {{object ID}}"
-                    f"{SPECIAL_CHAR}{{msg index for object}}"
-                ),
+                description=(f"Message id - {{object ID}}"
+                             f"{SPECIAL_CHAR}{{msg index for object}}"),
             ),
         )
         if not hasattr(cls, "_model"):
@@ -542,8 +518,7 @@ class OutReportMeta(OptionsMixin[OutReportOptions], type):
 class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
     @classmethod
     def gen_routes(  # noqa: WPS217, WPS231
-        cls, api: "PyBrookApi", redis_dep: aioredis.Redis
-    ):
+            cls, api: "PyBrookApi", redis_dep: aioredis.Redis):
         model_cls = cls.pydantic_model
 
         @api.fastapi.get(
@@ -553,16 +528,15 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
         )
         async def get_report(redis_conn: aioredis.Redis = redis_dep):
             messages = await redis_conn.xrevrange(
-                cls.pybrook_options.stream_name, count=1
-            )
+                cls.pybrook_options.stream_name, count=1)
             for _msg_id, msg_body in messages:  # noqa: WPS328
                 return model_cls(**decode_stream_message(msg_body))
             return {}
 
         @api.fastapi.websocket(f"/{cls.pybrook_options.name}")
         async def read_reports(  # noqa: WPS231
-            websocket: fastapi.WebSocket, redis_conn: aioredis.Redis = redis_dep
-        ):
+                websocket: fastapi.WebSocket,
+                redis_conn: aioredis.Redis = redis_dep):
             await websocket.accept()
             last_msg = "$"
             stream_name = cls.pybrook_options.stream_name
@@ -572,9 +546,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                 if time() - last_ping > WEBSOCKET_PING_INTERVAL:
                     try:
                         # Check if connection is active
-                        await asyncio.wait_for(
-                            websocket.receive_bytes(), timeout=WEBSOCKET_WAIT_TIME
-                        )
+                        await asyncio.wait_for(websocket.receive_bytes(),
+                                               timeout=WEBSOCKET_WAIT_TIME)
                     except asyncio.TimeoutError:
                         ...  # Everything is OK
                     except (fastapi.WebSocketDisconnect, AssertionError):
@@ -592,8 +565,8 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                         last_msg, payload = m_data
                         try:
                             await websocket.send_text(
-                                model_cls(**decode_stream_message(payload)).json()
-                            )
+                                model_cls(
+                                    **decode_stream_message(payload)).json())
                         except ConnectionClosedOK:
                             active = False
                         except RuntimeError:
@@ -613,8 +586,7 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
                 stream_name=cls.pybrook_options.stream_name,
                 websocket_path=f"/{cls.pybrook_options.name}",
                 report_schema=cls.pydantic_model.schema(),
-            )
-        )
+            ))
 
     @classmethod
     def gen_consumers(cls, model: "PyBrook"):
@@ -622,26 +594,21 @@ class OutReport(ConsumerGenerator, RouteGenerator, metaclass=OutReportMeta):
         for field in cls._report_fields.values():
             stream_key: str = field.source_field.stream_name
             dep: redis_plugin.Dependency = inputs.setdefault(
-                stream_key, redis_plugin.Dependency(stream_key=stream_key)
-            )
+                stream_key, redis_plugin.Dependency(stream_key=stream_key))
             dep.fields.append(
-                redis_plugin.DependencyField(
-                    src=field.source_field.field_name, dst=field.destination_field_name
-                )
-            )
+                redis_plugin.DependencyField(src=field.source_field.field_name,
+                                             dst=field.destination_field_name))
 
         model.add_dependency_resolver(
             redis_plugin.DependencyResolver(
                 output_stream_key=cls.pybrook_options.stream_name,
                 inputs=list(inputs.values()),
-            )
-        )
+            ))
 
 
 class InputField(SourceField):
-    def __init__(
-        self, report_class: Type[InReport], pydantic_field: pydantic.fields.ModelField
-    ):
+    def __init__(self, report_class: Type[InReport],
+                 pydantic_field: pydantic.fields.ModelField):
         super().__init__(
             pydantic_field.name,
             value_type=pydantic_field.type_,
@@ -655,21 +622,22 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
         try:
             value_type = annotations.pop("return")
         except KeyError:
-            raise ValueError(f"Please specify return value for {calculate.__name__}")
-        super().__init__(field_name=(name or calculate.__name__), value_type=value_type)
+            raise ValueError(
+                f"Please specify return value for {calculate.__name__}")
+        super().__init__(field_name=(name or calculate.__name__),
+                         value_type=value_type)
         self.args: inspect.Signature = inspect.signature(calculate)
         self.is_coro: bool = inspect.iscoroutinefunction(calculate)
         self.dependencies: Dict[str, Dependency] = {
-            arg_name: arg.default for arg_name, arg in self.args.parameters.items()
+            arg_name: arg.default
+            for arg_name, arg in self.args.parameters.items()
         }
         all_defaults_are_deps = all(
-            isinstance(d, Dependency) for k, d in self.dependencies.items()
-        )
+            isinstance(d, Dependency) for k, d in self.dependencies.items())
         if not all_defaults_are_deps:
             raise RuntimeError(
                 f'Artificial field "{self.field_name}" has default values'
-                f" which do not subclass Dependency."
-            )
+                f" which do not subclass Dependency.")
         self.calculate = calculate
 
     def __call__(self, *args, **kwargs):
@@ -700,31 +668,25 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
         for field_name, field in self.regular_dependencies.items():
             stream_key: str = field.src_field.stream_name
             dep: redis_plugin.Dependency = inputs.setdefault(
-                stream_key, redis_plugin.Dependency(stream_key=stream_key)
-            )
+                stream_key, redis_plugin.Dependency(stream_key=stream_key))
             dep.fields.append(
-                redis_plugin.DependencyField(
-                    src=field.src_field.field_name, dst=field_name
-                )
-            )
+                redis_plugin.DependencyField(src=field.src_field.field_name,
+                                             dst=field_name))
         for field_name, field in self.historical_dependencies.items():
             stream_key: str = field.src_field.stream_name
             dep: redis_plugin.Dependency = inputs.setdefault(
-                stream_key, redis_plugin.Dependency(stream_key=stream_key)
-            )
+                stream_key, redis_plugin.Dependency(stream_key=stream_key))
             dep.fields.append(
                 redis_plugin.HistoricalDependencyField(
                     src=field.src_field.field_name,
                     dst=field_name,
                     history_len=field.history_length,
-                )
-            )
+                ))
         arguments_stream_key = f"{SPECIAL_CHAR}{self.field_name}" f"{SPECIAL_CHAR}args"
         model.add_dependency_resolver(
             redis_plugin.DependencyResolver(
-                output_stream_key=arguments_stream_key, inputs=list(inputs.values())
-            )
-        )
+                output_stream_key=arguments_stream_key,
+                inputs=list(inputs.values())))
 
         field_generator_deps = [
             BaseFieldGenerator.Dep(name=dep_name, value_type=dep.value_type)
@@ -733,8 +695,7 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
         ]
 
         generator_class: Type[BaseFieldGenerator] = (
-            AsyncFieldGenerator if self.is_coro else SyncFieldGenerator
-        )
+            AsyncFieldGenerator if self.is_coro else SyncFieldGenerator)
 
         field_generator = generator_class(
             redis_url=model.redis_url,
@@ -743,8 +704,7 @@ class ArtificialField(SourceField, Registrable, ConsumerGenerator):
             generator=self.calculate,
             dependencies=field_generator_deps,
             redis_deps=[
-                key
-                for key, dep in self.dependencies.items()
+                key for key, dep in self.dependencies.items()
                 if (dep.is_aioredis and self.is_coro) or dep.is_redis
             ],
         )
@@ -763,7 +723,6 @@ class PyBrookApi:
 
     The default implementation is based on FastAPI.
     """
-
     def __init__(self, brook: "PyBrook"):
         self.fastapi = fastapi.FastAPI()
         self.brook = brook
@@ -783,12 +742,15 @@ class PyBrookApi:
         @self.fastapi.on_event("startup")
         async def startup():
             frontend_dir = str(Path(__file__).parent / "frontend")
-            self.fastapi.mount(
-                "/panel/", StaticFiles(directory=frontend_dir, html=True), name="static"
-            )
-            self.fastapi.state.redis = await aioredis.from_url(
-                self.brook.redis_url, encoding="utf-8", decode_responses=True
-            )
+            self.fastapi.mount("/panel/",
+                               StaticFiles(directory=frontend_dir, html=True),
+                               name="static")
+            self.fastapi.state.redis = aioredis.Redis(
+                connection_pool=aioredis.BlockingConnectionPool.from_url(
+                    self.brook.redis_url,
+                    encoding="utf-8",
+                    decode_responses=True,
+                    max_connections=10))
             self.fastapi.state.socket_active = True
             signal.signal(signal.SIGINT, shutdown)
             signal.signal(signal.SIGTERM, shutdown)
@@ -797,11 +759,11 @@ class PyBrookApi:
         def shutdown(*args):
             logger.info("set socket active to false")
             self.fastapi.state.socket_active = False
-            asyncio.create_task(self.fastapi.state.redis.close())  # noqa: WPS219
+            asyncio.create_task(
+                self.fastapi.state.redis.close())  # noqa: WPS219
             asyncio.create_task(
                 self.fastapi.state.redis.connection_pool.  # noqa: WPS219
-                disconnect()
-            )
+                disconnect())
 
     async def redis_dependency(self) -> AsyncIterator[aioredis.Redis]:
         """
@@ -814,13 +776,15 @@ class PyBrookApi:
 
     def visit(self, generator: RouteGenerator):
         """Visits a route generator to add new endpoints."""
-        generator.gen_routes(self, redis_dep=fastapi.Depends(self.redis_dependency))
+        generator.gen_routes(self,
+                             redis_dep=fastapi.Depends(self.redis_dependency))
 
 
 class PyBrook:
     """This class represents a PyBrook model."""
-
-    def __init__(self, redis_url: str, api_class: Type[PyBrookApi] = PyBrookApi):
+    def __init__(self,
+                 redis_url: str,
+                 api_class: Type[PyBrookApi] = PyBrookApi):
         """
         Args:
             redis_url: Url of the Redis Gears server.
@@ -834,7 +798,8 @@ class PyBrook:
         self.redis_url: str = redis_url
         self.api: PyBrookApi = api_class(self)
         self.manager: Optional[WorkerManager] = None
-        self._redis_plugin_config: redis_plugin.BrookConfig = redis_plugin.BrookConfig()
+        self._redis_plugin_config: redis_plugin.BrookConfig = redis_plugin.BrookConfig(
+        )
 
     def process_model(self):
         if not self.consumers:
@@ -850,10 +815,10 @@ class PyBrook:
     def add_input_tagger(self, tagger: redis_plugin.InputTagger):
         self._redis_plugin_config.input_taggers[tagger.stream_key] = tagger
 
-    def add_dependency_resolver(self, resolver: redis_plugin.DependencyResolver):
-        self._redis_plugin_config.dependency_resolvers[resolver.output_stream_key] = (
-            resolver
-        )
+    def add_dependency_resolver(self,
+                                resolver: redis_plugin.DependencyResolver):
+        self._redis_plugin_config.dependency_resolvers[
+            resolver.output_stream_key] = (resolver)
 
     @property
     def app(self) -> fastapi.FastAPI:
@@ -898,22 +863,22 @@ class PyBrook:
         self.api.schema.group_field = self._gen_field_info(group_field)
         self.api.schema.time_field = self._gen_field_info(time_field)
         if direction_field:
-            self.api.schema.direction_field = self._gen_field_info(direction_field)
+            self.api.schema.direction_field = self._gen_field_info(
+                direction_field)
 
     def input(  # noqa: A003
-        self, name: str = None, *, id_field: str
-    ) -> Callable[[TI], TI]:
+            self, name: str = None, *, id_field: str) -> Callable[[TI], TI]:
         """
         Register an input report.
 
         Returns:
             A decorator, which accepts an InReport as an argument.
         """
-
         def wrapper(cls) -> TI:
             name_safe = name or cls.__name__
             self.inputs[name_safe] = cls
-            cls.pybrook_options = InReportOptions(id_field=id_field, name=name_safe)
+            cls.pybrook_options = InReportOptions(id_field=id_field,
+                                                  name=name_safe)
             self.api.visit(cls)
             return cls
 
@@ -926,7 +891,6 @@ class PyBrook:
         Returns:
             A decorator, which accepts an OutReport as an argument.
         """
-
         def wrapper(cls) -> TO:
             name_safe = name or cls.__name__
             self.outputs[name_safe] = cls
@@ -944,7 +908,6 @@ class PyBrook:
             A decorator, which accepts a callable as an argument.
             The callable provided is used to calculate the value of the artificial field.
         """
-
         def wrapper(fun: Callable) -> Any:
             field = ArtificialField(fun, name=name)
             self.artificial_fields[name or fun.__name__] = field

@@ -37,9 +37,9 @@ import threading
 from pathlib import Path
 from time import sleep
 
-import redis.asyncio as aioredis
 import pytest
 import redis
+import redis.asyncio as aioredis
 
 from pybrook.consumers.base import BaseStreamConsumer
 from pybrook.consumers.worker import WorkerManager
@@ -57,17 +57,14 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 @pytest.fixture()
 def redis_server():
-    r = subprocess.Popen(
-        [
-            "redis-server",
-            "--save",
-            '""',
-            "--loadmodule",
-            str(
-                PROJECT_ROOT / "pybrook-redismodule/target/release/libpybrook_redis.so"
-            ),
-        ]
-    )
+    r = subprocess.Popen([
+        "redis-server",
+        "--save",
+        '""',
+        "--loadmodule",
+        str(PROJECT_ROOT
+            / "pybrook-redismodule/target/release/libpybrook_redis.so"),
+    ])
     c = redis.from_url(TEST_REDIS_URI, socket_connect_timeout=1)
     for i in range(10):
         try:
@@ -85,8 +82,7 @@ def redis_server():
 @pytest.mark.asyncio
 async def redis_async(redis_server):
     redis_async: aioredis.Redis = await aioredis.from_url(
-        TEST_REDIS_URI, decode_responses=True
-    )
+        TEST_REDIS_URI, decode_responses=True)
     await redis_async.flushdb()
     yield redis_async
     await redis_async.flushdb()
@@ -96,7 +92,8 @@ async def redis_async(redis_server):
 
 @pytest.fixture
 def redis_sync(redis_server):
-    redis_sync: redis.Redis = redis.from_url(TEST_REDIS_URI, decode_responses=True)
+    redis_sync: redis.Redis = redis.from_url(TEST_REDIS_URI,
+                                             decode_responses=True)
     redis_sync.flushdb()
     yield redis_sync
     redis_sync.close()
@@ -111,9 +108,8 @@ def limit_time(monkeypatch):
     monkeypatch.setattr(
         BaseStreamConsumer,
         "active",
-        property(
-            fget=lambda s: (time() < t + 10) and state["active"], fset=lambda s, v: None
-        ),
+        property(fget=lambda s: (time() < t + 10) and state["active"],
+                 fset=lambda s, v: None),
     )
 
     def term(*args, **kwargs):

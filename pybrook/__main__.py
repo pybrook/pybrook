@@ -48,7 +48,6 @@ class ModelChangeEventHandler(FileSystemEventHandler):
     """
     Handles model hot-reloading.
     """
-
     def __init__(self, brook):
         """
 
@@ -70,8 +69,8 @@ class ModelChangeEventHandler(FileSystemEventHandler):
 
 
 def add_consumer_args(
-    parser: argparse.ArgumentParser, consumers: List[BaseStreamConsumer]
-) -> Dict[str, ConsumerConfig]:
+        parser: argparse.ArgumentParser,
+        consumers: List[BaseStreamConsumer]) -> Dict[str, ConsumerConfig]:
     """
 
     Args:
@@ -98,9 +97,8 @@ def add_consumer_args(
     return workers_config
 
 
-def update_workers_config(
-    args: argparse.Namespace, workers_config: Dict[str, ConsumerConfig]
-):
+def update_workers_config(args: argparse.Namespace,
+                          workers_config: Dict[str, ConsumerConfig]):
     """
     Updates `workers_config` with settings loaded from argparse arguments.
 
@@ -112,7 +110,7 @@ def update_workers_config(
 
     """
     for c in workers_config.keys():
-        for arg in ("workers",):
+        for arg in ("workers", ):
             arg_name: str = c.replace("-", "_") + "_" + arg
             setattr(workers_config[c], arg, getattr(args, arg_name))
 
@@ -167,11 +165,8 @@ def main():
     model_module = import_module(app_arg[0])
     modified = True
     while modified:
-        brook: PyBrook = (
-            getattr(model_module, app_arg[1])
-            if len(app_arg) > 1
-            else model_module.brook
-        )
+        brook: PyBrook = (getattr(model_module, app_arg[1])
+                          if len(app_arg) > 1 else model_module.brook)
         brook.process_model()
         workers_config = add_consumer_args(parser, brook.consumers)
         args = parser.parse_args()

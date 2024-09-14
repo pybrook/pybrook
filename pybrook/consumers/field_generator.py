@@ -19,9 +19,9 @@
 import dataclasses
 from typing import Callable, Dict, List, Type, Union
 
-import redis.asyncio as aioredis
 import pydantic
 import redis
+import redis.asyncio as aioredis
 from pydantic import ValidationError
 
 from pybrook.config import ARTIFICIAL_NAMESPACE, MSG_ID_FIELD, SPECIAL_CHAR
@@ -59,7 +59,8 @@ class BaseFieldGenerator(BaseStreamConsumer):
         self.redis_deps = redis_deps or []
         self.output_stream_name = f"{SPECIAL_CHAR}{namespace}{SPECIAL_CHAR}{field_name}"
         pydantic_fields = {
-            dep.name: (dep.value_type, pydantic.Field()) for dep in dependencies
+            dep.name: (dep.value_type, pydantic.Field())
+            for dep in dependencies
         }
         self.dep_model: Type[pydantic.BaseModel] = pydantic.create_model(
             field_name + "Model",
@@ -80,9 +81,9 @@ class BaseFieldGenerator(BaseStreamConsumer):
 
     def call_generator(self, dependencies, redis_conn: AnyRedis):
         if self.redis_deps:
-            return self.generator(
-                **dependencies, **{k: redis_conn for k in self.redis_deps}
-            )
+            return self.generator(**dependencies,
+                                  **{k: redis_conn
+                                     for k in self.redis_deps})
         return self.generator(**dependencies)
 
 
@@ -103,9 +104,11 @@ class AsyncFieldGenerator(AsyncStreamConsumer, BaseFieldGenerator):
             raise e
         value = await self.call_generator(dependencies, redis_conn)
         return {
-            self.output_stream_name: encode_stream_message(
-                {MSG_ID_FIELD: message_id, self.field_name: value}
-            )
+            self.output_stream_name:
+            encode_stream_message({
+                MSG_ID_FIELD: message_id,
+                self.field_name: value
+            })
         }
 
 
@@ -126,7 +129,9 @@ class SyncFieldGenerator(SyncStreamConsumer, BaseFieldGenerator):
             raise e
         value = self.call_generator(dependencies, redis_conn)
         return {
-            self.output_stream_name: encode_stream_message(
-                {MSG_ID_FIELD: message_id, self.field_name: value}
-            )
+            self.output_stream_name:
+            encode_stream_message({
+                MSG_ID_FIELD: message_id,
+                self.field_name: value
+            })
         }

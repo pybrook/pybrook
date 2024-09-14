@@ -24,7 +24,9 @@ REDIS_URI = config("REDIS_URI", str, default="redis://localhost")
 
 SPECIAL_CHAR = config("SPECIAL_CHAR", str, default=":")
 MSG_ID_FIELD = "@pb@msg_id"
-ARTIFICIAL_NAMESPACE = config("ARTIFICIAL_NAMESPACE", str, default="artificial")
+ARTIFICIAL_NAMESPACE = config("ARTIFICIAL_NAMESPACE",
+                              str,
+                              default="artificial")
 DEFAULT_WORKERS = config("DEFAULT_WORKERS", int, default=4)
 
 WEBSOCKET_XREAD_BLOCK = config("WEBSOCKET_XREAD_BLOCK", int, default=100)
