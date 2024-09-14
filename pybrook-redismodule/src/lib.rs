@@ -377,12 +377,6 @@ fn on_stream(ctx: &Context, _event_type: NotifyEvent, event: &str, key: &'static
             let key = field.0.to_string();
             let value_json = field.1.to_string();
             let value = serde_json::from_str(value_json.as_str()).unwrap_or(Value::Null);
-            if value.is_null() {
-                log_warning(format!(
-                    "WARNING: Invalid JSON in message {}-{}, key {}, value {:?}",
-                    record.id.ms, record.id.seq, key, value_json
-                ))
-            }
             message.insert(key, value);
         }
         last_record_id = record.id;
