@@ -29,11 +29,12 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-
+import random
+import secrets
 from json import loads
 from typing import Tuple, List
 
-from locust import FastHttpUser, task, between
+from locust import FastHttpUser, task, between, constant_throughput
 from datetime import datetime
 
 
@@ -46,10 +47,10 @@ lines = list(sorted(data.keys()))
 
 
 class VehicleReportUser(FastHttpUser):
-    wait_time = between(0.001, 0.001)
+    wait_time = constant_throughput(1)
 
     def on_start(self):
-        self.line = lines.pop(0)
+        self.line = random.choice(lines)
         self.records: List[Tuple[datetime, dict]] = sorted(
             [
                 (datetime.fromisoformat(v['time']), v)
@@ -57,6 +58,7 @@ class VehicleReportUser(FastHttpUser):
             ],
             key=lambda v: v[0]
         )
+        self.user_id = secrets.token_urlsafe(12)
         self.current_record_id = 0
         self.time_offset = None
 
@@ -89,6 +91,7 @@ class VehicleReportUser(FastHttpUser):
         cur_lat = record_a['lat'] + lat_diff * pos
         record = {
             **record_b, 'time': now.isoformat(),
+            'vehicle_number': self.user_id,
             'lon': cur_lon,
             'lat': cur_lat
         }
