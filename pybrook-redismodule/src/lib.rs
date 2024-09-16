@@ -317,7 +317,7 @@ fn redis_string<T: Into<Vec<u8>>>(ctx: &Context, value: T) -> RedisString {
     RedisString::create(NonNull::new(ctx.ctx), value)
 }
 
-fn stream_add(ctx: &Context, key_name: &[u8], message: &Value) {
+fn stream_add(ctx: &Context, key_name: &[u8], message: &Value) -> Status {
     let mut id = RedisModuleStreamID { ms: 0, seq: 0 };
     let stream_message_id = &mut id as *mut RedisModuleStreamID;
 
@@ -327,7 +327,7 @@ fn stream_add(ctx: &Context, key_name: &[u8], message: &Value) {
         message_vector.push(redis_string(
             ctx,
             serde_json::to_string(value).unwrap().as_bytes(),
-        )); // what about int, float, etc?
+        ));
     }
     let mut args = message_vector.iter().map(|v| v.inner).collect::<Vec<_>>();
 
@@ -344,15 +344,9 @@ fn stream_add(ctx: &Context, key_name: &[u8], message: &Value) {
             args.as_mut_ptr(),
             (message_vector.len() as i64) / 2,
         )
-    }
-        .into();
-    match status {
-        Status::Ok => {}
-        Status::Err => {
-            panic!("err")
-        }
-    }
+    }.into();
     raw::close_key(key);
+    return status;
 }
 
 fn on_stream(ctx: &Context, _event_type: NotifyEvent, event: &str, key: &'static [u8]) {
