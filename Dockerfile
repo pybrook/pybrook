@@ -9,6 +9,7 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 RUN pip install -U pdm
 
+COPY docs/index.md /project/docs/index.md
 COPY README.md pdm.lock pyproject.toml README.md /project/
 
 WORKDIR /project
