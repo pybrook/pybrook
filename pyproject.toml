@@ -72,7 +72,7 @@ plugins = "pydantic.mypy"
 
 [project]
 name = "pybrook"
-version = "0.1.6"
+version = "0.1.7"
 description = "PyBrook - a real-time cloud computing framework for the Internet of Things."
 authors = [
     {name = "Michał Rokita", email = "mrokita@mrokita.pl"},
