@@ -1,5 +1,6 @@
 """
-This module contains definitions of Pydantic models used to tell the frontend about available streams & fields.
+This module contains definitions of Pydantic models
+used to tell the frontend about available streams & fields.
 
 This is required, because the OpenAPI documentation doesn't support WebSockets.
 """
@@ -36,7 +37,7 @@ This is required, because the OpenAPI documentation doesn't support WebSockets.
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -46,7 +47,7 @@ from pybrook.config import MSG_ID_FIELD, SPECIAL_CHAR
 class StreamInfo(BaseModel):
     stream_name: str
     websocket_path: str
-    report_schema: Dict[Any, Any]
+    report_schema: dict[Any, Any]
 
 
 class FieldInfo(BaseModel):
@@ -55,7 +56,7 @@ class FieldInfo(BaseModel):
 
 
 class PyBrookSchema(BaseModel):
-    streams: List[StreamInfo] = []
+    streams: list[StreamInfo] = []
     special_char: str = SPECIAL_CHAR
     msg_id_field: str = MSG_ID_FIELD
     latitude_field: Optional[FieldInfo] = None

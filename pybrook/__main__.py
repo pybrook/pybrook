@@ -32,8 +32,10 @@
 #
 
 import argparse
+from argparse import ArgumentError
+from contextlib import suppress
 from importlib import import_module, reload
-from typing import Dict, List, Union
+from typing import Union
 
 from loguru import logger
 from watchdog.events import DirModifiedEvent, FileModifiedEvent, FileSystemEventHandler
@@ -48,7 +50,8 @@ class ModelChangeEventHandler(FileSystemEventHandler):
     """
     Handles model hot-reloading.
     """
-    def __init__(self, brook):
+
+    def __init__(self, brook: PyBrook):
         """
 
         Args:
@@ -69,8 +72,8 @@ class ModelChangeEventHandler(FileSystemEventHandler):
 
 
 def add_consumer_args(
-        parser: argparse.ArgumentParser,
-        consumers: List[BaseStreamConsumer]) -> Dict[str, ConsumerConfig]:
+    parser: argparse.ArgumentParser, consumers: list[BaseStreamConsumer]
+) -> dict[str, ConsumerConfig]:
     """
 
     Args:
@@ -78,44 +81,46 @@ def add_consumer_args(
         consumers: List of consumers to generate CLI options for.
 
     Returns:
-        A dictionary of consumer configs filled with defaults. Consumer group names are used as keys.
+        A dictionary of consumer configs filled with defaults.
+        Consumer group names are used as keys.
 
     """
     workers_config = {}
     for c in consumers:
         consumer_config = ConsumerConfig()
-        try:
+        with suppress(ArgumentError):
             parser.add_argument(
                 f"--{c.consumer_group_name}-workers",
                 type=int,
                 help="(default: %(default)s)",  # noqa: WPS323
                 default=consumer_config.workers,
             )
-        except argparse.ArgumentError:
-            ...
         workers_config[c.consumer_group_name] = consumer_config
     return workers_config
 
 
-def update_workers_config(args: argparse.Namespace,
-                          workers_config: Dict[str, ConsumerConfig]):
+def update_workers_config(
+    args: argparse.Namespace, workers_config: dict[str, ConsumerConfig]
+):
     """
     Updates `workers_config` with settings loaded from argparse arguments.
 
     Args:
         args: An argparse `Namespace`
-        workers_config:  A dictionary of consumer configs to update using settings loaded from the `args` argument.
+        workers_config:  A dictionary of
+            consumer configs to update using
+            settings loaded from the `args` argument.
 
     Returns:
 
     """
-    for c in workers_config.keys():
-        for arg in ("workers", ):
+    for c in workers_config:
+        for arg in ("workers",):
             arg_name: str = c.replace("-", "_") + "_" + arg
             setattr(workers_config[c], arg, getattr(args, arg_name))
 
 
-def main():
+def main() -> None:
     """
     CLI Entrypoint.
 
@@ -156,7 +161,7 @@ def main():
     parser.add_argument("-h", "--help", action="store_true")
     parser.add_argument("APP", nargs=1)
     args: argparse.Namespace
-    unknown: List[str]
+    unknown: list[str]
     args, unknown = parser.parse_known_args()
     app_arg = args.APP[-1].split(":") if args.APP else None
     if not app_arg and args.help:
@@ -165,8 +170,11 @@ def main():
     model_module = import_module(app_arg[0])
     modified = True
     while modified:
-        brook: PyBrook = (getattr(model_module, app_arg[1])
-                          if len(app_arg) > 1 else model_module.brook)
+        brook: PyBrook = (
+            getattr(model_module, app_arg[1])
+            if len(app_arg) > 1
+            else model_module.brook
+        )
         brook.process_model()
         workers_config = add_consumer_args(parser, brook.consumers)
         args = parser.parse_args()

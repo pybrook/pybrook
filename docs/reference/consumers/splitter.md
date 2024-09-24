@@ -1,1 +1,0 @@
-::: pybrook.consumers.splitter

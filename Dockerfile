@@ -1,24 +1,28 @@
-# Use Python 3.9 - there is no binary version of hiredis for 3.10 yet
-FROM python:3.9-slim
+ARG PYTHON_TAG="3.12-slim"
+FROM python:$PYTHON_TAG AS builder
 
 LABEL maintainer="Michał Rokita <mrokita@macrosystem.pl>"
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONUNBUFFERED=1 \
-    POETRY_HOME=/usr
+    PDM_CHECK_UPDATE=false
 
-RUN apt-get update \
-    && apt-get install -y curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/b47de09/install-poetry.py | python -
+RUN pip install -U pdm
 
+COPY README.md pdm.lock pyproject.toml README.md /project/
 
-RUN mkdir /src
-WORKDIR /src
-COPY poetry.lock pyproject.toml /src/
-RUN poetry config virtualenvs.create false && poetry install --no-dev --no-root --no-interaction --no-ansi
-COPY pybrook /src/pybrook
-COPY README.md locustfile.py  ztm_dump.json /src/
-ENV TZ=CET
-RUN poetry install --no-dev --no-interaction --no-ansi
+WORKDIR /project
+RUN pdm install --check --dev --no-editable
+COPY pybrook /project/pybrook
+
+FROM python:$PYTHON_TAG
+
+COPY --from=builder /project/.venv/ /project/.venv
+ENV TZ=CET \
+    PATH="/project/.venv/bin:$PATH" \
+    PYTHONPATH="/project:$PYTHONPATH"
+
+WORKDIR /project
+COPY pybrook /project/pybrook
+COPY README.md locustfile.py ztm_dump.json /project/
 CMD bash

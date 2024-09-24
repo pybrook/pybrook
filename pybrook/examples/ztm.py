@@ -16,9 +16,10 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+from collections.abc import Sequence
 from datetime import datetime
 from math import atan2, degrees
-from typing import Optional, Sequence
+from typing import Optional
 
 from pybrook.models import (
     InReport,

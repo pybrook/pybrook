@@ -17,7 +17,7 @@
 #
 
 import dataclasses
-from typing import Callable, Dict, List, Type, Union
+from typing import Callable, Optional, Union
 
 import pydantic
 import redis
@@ -39,7 +39,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
     @dataclasses.dataclass
     class Dep:  # noqa: WPS431
         name: str
-        value_type: Type
+        value_type: type
 
     def __init__(
         self,
@@ -49,8 +49,8 @@ class BaseFieldGenerator(BaseStreamConsumer):
         field_name: str,
         namespace: str = ARTIFICIAL_NAMESPACE,
         dependency_stream: str,
-        dependencies: List[Dep],
-        redis_deps: List[str] = None,
+        dependencies: list[Dep],
+        redis_deps: Optional[list[str]] = None,
         read_chunk_length: int = 200,
         **kwargs,
     ):
@@ -62,7 +62,7 @@ class BaseFieldGenerator(BaseStreamConsumer):
             dep.name: (dep.value_type, pydantic.Field())
             for dep in dependencies
         }
-        self.dep_model: Type[pydantic.BaseModel] = pydantic.create_model(
+        self.dep_model: type[pydantic.BaseModel] = pydantic.create_model(
             field_name + "Model",
             **pydantic_fields,  # type: ignore
         )
@@ -91,11 +91,11 @@ class AsyncFieldGenerator(AsyncStreamConsumer, BaseFieldGenerator):
     async def process_message_async(
         self,
         stream_name: str,
-        message: Dict[str, str],
+        message: dict[str, str],
         *,
         redis_conn: aioredis.Redis,
         pipeline: aioredis.client.Pipeline,
-    ) -> Dict[str, Dict[str, str]]:
+    ) -> dict[str, dict[str, str]]:
         message = decode_stream_message(message)
         message_id = message.pop(MSG_ID_FIELD)
         try:
@@ -116,11 +116,11 @@ class SyncFieldGenerator(SyncStreamConsumer, BaseFieldGenerator):
     def process_message_sync(
         self,
         stream_name: str,
-        message: Dict[str, str],
+        message: dict[str, str],
         *,
         redis_conn: redis.Redis,
         pipeline: redis.client.Pipeline,
-    ) -> Dict[str, Dict[str, str]]:
+    ) -> dict[str, dict[str, str]]:
         message = decode_stream_message(message)
         message_id = message.pop(MSG_ID_FIELD)
         try:

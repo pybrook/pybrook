@@ -30,12 +30,12 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-from typing import Any, Dict
+from typing import Any
 
 import orjson
 
 
-def encode_stream_message(data: Dict[str, Any]):
+def encode_stream_message(data: dict[str, Any]):
     return {k: encode_value(v) for k, v in data.items()}
 
 
@@ -43,7 +43,7 @@ def encode_value(v: Any):
     return orjson.dumps(v)
 
 
-def decode_stream_message(data: Dict[str, str]):
+def decode_stream_message(data: dict[str, str]):
     return {k: decode_value(v) for k, v in data.items()}
 
 

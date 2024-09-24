@@ -1,21 +1,7 @@
 site_name: pybrook
 site_dir: docs_html
 use_directory_urls: false
-nav:
-  - Introduction: "index.md"
-  - Reference:
-      - pybrook:
-          - __main__: "reference/__main__.md"
-          - schemas: "reference/schemas.md"
-          - models: "reference/models.md"
-          - encoding: "reference/encoding.md"
-          - config: "reference/config.md"
-          - consumers:
-              - base: "reference/consumers/base.md"
-              - dependency_resolver: "reference/consumers/dependency_resolver.md"
-              - field_generator: "reference/consumers/field_generator.md"
-              - splitter: "reference/consumers/splitter.md"
-              - worker: "reference/consumers/worker.md"
+
 theme:
   name: "material"
   language: en
@@ -65,16 +51,19 @@ markdown_extensions:
       custom_checkbox: true
 
 plugins:
+  - literate-nav:
+      nav_file: SUMMARY.md
   - search
+  - autorefs
+  - gen-files:
+      scripts:
+      - docs/scripts/gen_ref_pages.py
   - mkdocstrings:
-      watch:
-        - .
       handlers:
         python:
-          rendering:
-            show_if_no_docstring: true
+          options:
+            show_if_no_docstring: True
             show_bases: True
-          selection:
             filters:
               - "!^__config__"
               - "!^__json_encoder__"

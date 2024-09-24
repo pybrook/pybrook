@@ -1,7 +1,6 @@
 [![PyPI](https://img.shields.io/pypi/v/pybrook?style=for-the-badge&color=purple)](https://pypi.org/project/pybrook/)
 [![docs](https://img.shields.io/badge/docs-mkdocs+mkdocstrings-lightblue?style=for-the-badge)](https://pybrook.github.io/pybrook/)
-![Python](https://img.shields.io/badge/python-3.7%2B-blue?style=for-the-badge)
-![Coverage](https://img.shields.io/badge/coverage-81%25-green?style=for-the-badge)
+![Python](https://img.shields.io/badge/python-3.9%2B-blue?style=for-the-badge)
 
 # Introduction
 
@@ -16,10 +15,10 @@ A simple `docker-compose up` is enough to start playing with the framework.
 
 ## Run demo with Docker
 
-It is recommended to use `docker-compose` for learning (you can use the `docker-compose.yml` from the [project repository](https://github.com/pybrook/pybrook/blob/master/docker-compose.yml):
+It is recommended to use `docker compose` for learning (you can use the `docker-compose.yml` from the [project repository](https://github.com/pybrook/pybrook/blob/master/docker-compose.yml):
 
 ```bash
-docker-compose up
+docker compose up
 ```
 
 This command will start all the services, including Redis with Redis Gears enabled.
@@ -162,7 +161,7 @@ services:
       - 8089:8089
     command: locust -H http://api:8000
   redis:
-    image: redislabs/redisgears:1.0.9
+    image: pybrook/redis:latest
 ```
 
 Then run `docker-compose up --build` again, to start PyBrook - this time using your own model.
@@ -180,12 +179,12 @@ pip install pybrook
 To run the `pybrook.examples.demo` model, you have to start all the required services manually:
 
 ```bash
-# Redis + Redis Gears
-docker run --net=host -d redislabs/redisgears:1.0.9
+# Redis + the PyBrook Redis module
+docker run --net=host -d pybrook/redis:latest
 # HTTP API based on pybrook.examples.demo - uvicorn
 uvicorn pybrook.examples.demo:app --reload  
 # PyBrook workers based on pybrook.examples.demo 
-pybrook pybrook.examples.demo:brook -rg 
+pybrook pybrook.examples.demo:brook 
 # Locust - load testing
 locust -H http://localhost:8000
 ```

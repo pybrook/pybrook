@@ -20,8 +20,9 @@ import asyncio
 import dataclasses
 import multiprocessing
 import signal
-import time
-from typing import Any, Callable, Dict, Iterable, List, Set, Tuple
+from collections.abc import Iterable
+from contextlib import suppress
+from typing import Any, Callable, Optional
 
 import redis
 import uvloop
@@ -49,8 +50,7 @@ class Worker:
             return self._spawn_async(processes_num=processes_num)
         raise NotImplementedError(self._consumer)
 
-    def _spawn_sync(self,
-                    processes_num: int) -> Iterable[multiprocessing.Process]:
+    def _spawn_sync(self, processes_num: int) -> Iterable[multiprocessing.Process]:
         return self._spawn(
             target=self._consumer.run_sync,  # type: ignore
             processes_num=processes_num,
@@ -61,49 +61,27 @@ class Worker:
         asyncio.set_event_loop_policy(policy)
         asyncio.set_event_loop(policy.new_event_loop())
         try:
-            asyncio.get_event_loop().run_until_complete(
-                self._consumer.run_async())
+            asyncio.get_event_loop().run_until_complete(self._consumer.run_async())
         except KeyboardInterrupt:
             ...
         except asyncio.CancelledError:
             ...  # This is fine, shouldn't break anything
 
-    def _spawn_async(self, *,
-                     processes_num: int) -> Iterable[multiprocessing.Process]:
-        return self._spawn(target=self._async_wrapper,
-                           processes_num=processes_num)
+    def _spawn_async(self, *, processes_num: int) -> Iterable[multiprocessing.Process]:
+        return self._spawn(target=self._async_wrapper, processes_num=processes_num)
 
     def _spawn(
-            self,
-            *,
-            target: Callable,
-            processes_num: int,
-            args: Tuple[Any, ...] = (),
+        self,
+        *,
+        target: Callable,
+        processes_num: int,
+        args: tuple[Any, ...] = (),
     ) -> Iterable[multiprocessing.Process]:
         processes = []
         self._consumer.register_consumer()
 
-        def target_wrapper(*args):
-            while True:
-                try:
-                    target(*args)
-                except redis.exceptions.ConnectionError:
-                    logger.warning("Connection lost, retrying in 3 seconds.")
-                    time.sleep(3)
-                    continue
-                except redis.exceptions.ResponseError as e:
-                    if "NOGROUP" in str(e):
-                        logger.warning(
-                            "Consumer group removed - restarting the worker instance."
-                        )
-                        self._consumer.register_consumer()
-                        continue
-                    raise e
-                else:
-                    break
-
         for _ in range(processes_num):
-            proc = multiprocessing.Process(target=target_wrapper, args=args)
+            proc = multiprocessing.Process(target=target, args=args)
             proc.start()
             processes.append(proc)
         logger.info(
@@ -122,15 +100,15 @@ class WorkerManager:
         self,
         consumers: Iterable[BaseStreamConsumer],
         redis_plugin_config: BrookConfig,
-        consumer_config: Dict[str, ConsumerConfig] = None,
+        consumer_config: Optional[dict[str, ConsumerConfig]] = None,
         enable_gears: bool = True,
     ):
         self.consumers = consumers
         self.config = consumer_config or {}
-        self.redis_urls: Set[str] = {c.redis_url for c in consumers}
+        self.redis_urls: set[str] = {c.redis_url for c in consumers}
         self.redis_plugin_config: BrookConfig = redis_plugin_config
-        self.regular_consumers: List[BaseStreamConsumer] = list(consumers)
-        self.processes: List[multiprocessing.Process] = []
+        self.regular_consumers: list[BaseStreamConsumer] = list(consumers)
+        self.processes: list[multiprocessing.Process] = []
         self._kill_on_terminate = False
 
     def terminate(self):
@@ -143,7 +121,7 @@ class WorkerManager:
         self._kill_on_terminate = True
 
     @logger.catch()
-    def run(self):
+    def run(self) -> None:
         if self.processes:
             raise RuntimeError("Already running!")
         signal.signal(signal.SIGINT, lambda *args: self.terminate)
@@ -152,24 +130,20 @@ class WorkerManager:
         self.spawn_workers()
 
         for redis_url in self.redis_urls:
-            redis_conn: redis.Redis = redis.from_url(redis_url,
-                                                     decode_responses=True,
-                                                     encoding="utf-8")
+            redis_conn: redis.Redis = redis.from_url(
+                redis_url, decode_responses=True, encoding="utf-8"
+            )
             # TODO: REGISTER PYBROOK CONFIG HERE
-            redis_conn.execute_command("PB.SETCONFIG",
-                                       self.redis_plugin_config.json())
+            redis_conn.execute_command("PB.SETCONFIG", self.redis_plugin_config.json())
 
         for proc in self.processes:
-            try:
+            with suppress(KeyboardInterrupt):
                 proc.join()
-            except KeyboardInterrupt:
-                ...
         self.processes = []
 
     def spawn_workers(self):
         for c in self.regular_consumers:
-            consumer_config = self.config.get(c.consumer_group_name,
-                                              ConsumerConfig())
+            consumer_config = self.config.get(c.consumer_group_name, ConsumerConfig())
             logger.info(f"Spawning worker for {c}...")
             w = Worker(c)
             procs = w.run(processes_num=consumer_config.workers)
